@@ -1,0 +1,23 @@
+FROM tensorflow/tensorflow:1.8.0-gpu-py3
+
+RUN apt-get update && apt-get install -y --no-install-recommends git vim
+
+# Necessary python package installation
+RUN pip install matplotlib scikit-image keras pandas plotnine Cython
+
+# Opencv installation
+RUN apt-get install -y libsm6 libxext6 libfontconfig1 libxrender1
+RUN pip install opencv-python
+
+# Matterport Mask RCNN project installation
+RUN mkdir /repos
+RUN cd /repos && git clone https://github.com/matterport/Mask_RCNN.git
+RUN pip install "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
+RUN cd /repos/Mask_RCNN && python setup.py install
+
+# Clear out introductory TensorFlow files
+RUN rm -rf /notebooks/*
+
+# Set useful development environment variables
+ENV MASK_RCNN_DIR=/repos/Mask_RCNN
+ENV PROJECT_ROOT_DIR=/notebooks
