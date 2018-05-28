@@ -1,0 +1,40 @@
+FROM tensorflow/tensorflow:1.8.0-gpu-py3
+ARG LAB_DIR=/lab
+ARG REPO_DIR=/lab/repos
+ARG DATA_DIR=/lab/data
+ARG CELLDOM_REPO_DIR=$REPO_DIR/celldom
+ARG CELLDOM_DATA_DIR=$DATA_DIR/celldom
+ARG CVUTILS_REPO_DIR=$REPO_DIR/cvutils
+
+RUN mkdir -p $LAB_DIR $REPO_DIR $DATA_DIR
+
+RUN apt-get update && apt-get install -y --no-install-recommends git vim
+
+RUN pip install jupyterlab matplotlib scikit-image keras pandas plotnine Cython papermill
+
+# Opencv installation
+RUN apt-get install -y libsm6 libxext6 libfontconfig1 libxrender1
+RUN pip install opencv-python
+
+# Matterport Mask RCNN project installation
+RUN cd $REPO_DIR && git clone https://github.com/matterport/Mask_RCNN.git
+RUN pip install "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
+RUN cd $REPO_DIR/Mask_RCNN && python setup.py install
+
+# CVUtils installation
+RUN cd $REPO_DIR && git clone https://github.com/hammerlab/cvutils.git
+
+# Add any source directories for development to python search path
+RUN mkdir -p $(python -m site --user-site) && \
+    echo "$CELLDOM_REPO_DIR/python" > $(python -m site --user-site)/local.pth && \
+    echo "$CVUTILS_REPO_DIR/python" >> $(python -m site --user-site)/local.pth
+
+# Set useful development environment variables (override on run if necessary)
+ENV CELLDOM_REPO_DIR $CELLDOM_REPO_DIR
+ENV CELLDOM_DATA_DIR $CELLDOM_DATA_DIR
+ENV CVUTILS_REPO_DIR $CVUTILS_REPO_DIR
+ENV MASK_RCNN_DIR $REPO_DIR/Mask_RCNN
+ENV LAB_ROOT_DIR $LAB_DIR
+ENV SHELL /bin/bash
+
+WORKDIR "$LAB_DIR"
