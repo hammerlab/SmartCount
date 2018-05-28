@@ -21,7 +21,12 @@ class CelldomTrainingConfig(Config):
     NUM_CLASSES = 1 + len(CLASS_NAMES)
 
     # Number of training and validation steps per epoch
-    STEPS_PER_EPOCH = 50
+    # *Note: In order to control the exact number of training iterations to, for
+    # example, match the number of training images, STEPS_PER_EPOCH should be
+    # set to the number of images / IMAGES_PER_GPU (see
+    # https://github.com/matterport/Mask_RCNN/blob/4129a27275c48c672f6fd8c6303a88ba1eed643b/samples/nucleus/nucleus.py
+    # for an example of this)
+    STEPS_PER_EPOCH = 100
     VALIDATION_STEPS = 10
 
     # Backbone network architecture
