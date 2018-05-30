@@ -18,6 +18,7 @@ RUN pip install opencv-python
 
 # Matterport Mask RCNN project installation
 RUN cd $REPO_DIR && git clone https://github.com/matterport/Mask_RCNN.git
+# See: https://github.com/matterport/Mask_RCNN/issues/6
 RUN pip install "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
 RUN cd $REPO_DIR/Mask_RCNN && python setup.py install
 
