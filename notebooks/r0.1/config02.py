@@ -77,3 +77,8 @@ class CelldomInferenceConfig(CelldomTrainingConfig):
     GPU_COUNT = int(os.getenv(ENV_NUM_GPUS_INFERENCE, 1))
     IMAGES_PER_GPU = int(os.getenv(ENV_NUM_IMAGES_PER_GPU_INFERENCE, 1))
 
+    # Matching to https://github.com/matterport/Mask_RCNN/blob/4129a27275c48c672f6fd8c6303a88ba1eed643b/
+    # samples/nucleus/nucleus.py
+    POST_NMS_ROIS_INFERENCE = 2000
+    DETECTION_MIN_CONFIDENCE = 0
+
