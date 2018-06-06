@@ -1,6 +1,7 @@
 import numpy as np
 from skimage.exposure import rescale_intensity
 from cvutils.mrcnn import dataset as mrcnn_dataset
+from celldom.config import marker_config
 
 
 class MarkerDataset(mrcnn_dataset.RectLabelDataset):
@@ -14,8 +15,8 @@ class MarkerDataset(mrcnn_dataset.RectLabelDataset):
         super(MarkerDataset, self).__init__()
         self.reflect_images = reflect_images
 
-    def initialize(self, image_paths, classes):
-        super(MarkerDataset, self).initialize(image_paths, classes, 'celldom-marker')
+    def initialize(self, image_paths):
+        super(MarkerDataset, self).initialize(image_paths, marker_config.CLASS_NAMES, 'celldom-marker')
 
     def load_mask(self, image_id):
         # Masks load as 3D array w/ shape (h, w, n_mask)
