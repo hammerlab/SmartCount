@@ -1,6 +1,7 @@
 from skimage import morphology
 from skimage import transform
 from skimage import filters
+from skimage import draw
 import pandas as pd
 import numpy as np
 
@@ -107,3 +108,10 @@ def get_marker_neighbors(centers, angle_range=(-25, 25)):
                         columns=['point_idx', 'point_y', 'point_x', 'neighbor_idx', 'neighbor_y', 'neighbor_x', 'angle',
                                  'distance'])
 
+
+def overlay_marker_centers(img, centers, color=0, radius=2):
+    res = img.copy()
+    for i, r in centers.astype(int).iterrows():
+        rr, cc = draw.circle(r['y'], r['x'], radius=radius, shape=img.shape)
+        res[rr, cc] = color
+    return res
