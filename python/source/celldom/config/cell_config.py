@@ -12,10 +12,6 @@ class CellTrainingConfig(rcnn_config.CelldomTrainingConfig):
     # Give the configuration a recognizable name
     NAME = "celldom-cell"
 
-    # Raw chip images seen so far all have shape (1024, 1376) and 1408 is
-    # used here as it is already divisible by 2 at least 6 times (per MRCNN requirements).
-    # Note that is crucial that IMAGE_MIN_DIM be 1024 here to ensure that the images
-    # are not actually resized -- only padded in both directions to 1408x1408
     IMAGE_RESIZE_MODE = "square"
     IMAGE_MIN_DIM = 320
     IMAGE_MAX_DIM = 320

@@ -21,7 +21,12 @@ def extract(img, cell_model):
     cells = []
     for i in range(cell_masks.shape[-1]):
         props = regionprops(cell_masks[..., i].astype(int))
-        assert len(props) == 1
+        assert len(props) <= 1
+
+        # In the rare case that an object is detected with no mask, ignore it
+        if len(props) == 0:
+            continue
+
         props = props[0]
         cells.append(dict(
             area=props.area,
