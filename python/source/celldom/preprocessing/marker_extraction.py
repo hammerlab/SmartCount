@@ -6,6 +6,20 @@ import pandas as pd
 import numpy as np
 
 
+def extract(img, marker_model):
+    """Extract marker centers from a multi-apartment image"""
+    detections = marker_model.detect([img])[0]
+
+    # All RGB image channels should be equivalent before proceeding
+    if not np.all(img[..., 0] == img[..., 1]):
+        raise ValueError('Expecting greyscale RGB images with equal channels')
+
+    # Use bounding box predictions to establish points as marker centers
+    centers = get_marker_centers(img[..., 0], detections['rois'])
+
+    return centers
+
+
 def get_marker_centers(img, rois):
     """Identify the center point for each marker in the given ROI detections
 

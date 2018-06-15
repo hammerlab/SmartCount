@@ -1,6 +1,8 @@
 from skimage import transform
+from skimage.exposure import rescale_intensity
 import pandas as pd
 import numpy as np
+from celldom.preprocessing import marker_extraction, digit_extraction, cell_extraction
 
 
 def _rotate_vectors_2d(arr, rotation, origin):
@@ -33,14 +35,14 @@ def apply_normalization(img, centers, rotation=None, scale=None):
     return img, centers
 
 
-def extract_around_marker(img, center, margins):
+def partition_around_marker(img, center, margins):
     """Extract an image patch (from a raw microscope image) using the specified marker location and margins"""
     cy, cx = center
 
     # Defining bounding box to crop out
-    ymin = cy - margins['top']
+    ymin = cy + margins['top']
     ymax = cy + margins['bottom']
-    xmin = cx - margins['left']
+    xmin = cx + margins['left']
     xmax = cx + margins['right']
 
     # Return nothing if any part of the box is outside the original image
@@ -52,23 +54,131 @@ def extract_around_marker(img, center, margins):
     return img
 
 
-def extract_images(img, centers, chip_config):
-    """Extract all relevant patches from raw, multi-component images"""
-    imgs = []
+def partition_digit_images(img, bounds):
+    """Extract digit images in a multi-digit image using the given x (i.e. column) bounds
+
+    Args:
+        img: Image containing multiple-digits
+        bounds: Sequence of (x-start, x-stop) tuples containing lateral boundaries of digits within
+            multi-digit images
+    Returns:
+        List of individual digit images (with length equal to len(bounds))
+    """
+    return [img[:, b[0]:b[1]] for b in bounds]
+
+
+def partition_chip(img, centers, chip_config):
+    """Extract all relevant patches from raw, multi-component images (ie a chip)"""
+    partitions = []
     for i, r in centers.astype(int).iterrows():
         center = r['y'], r['x']
 
-        apt_img = extract_around_marker(img, center, chip_config['apt_margins'])
+        apt_img = partition_around_marker(img, center, chip_config['apt_margins'])
         if apt_img is None:
             continue
 
-        apt_num_img = extract_around_marker(img, center, chip_config['apt_num_margins'])
-        if apt_num_img is None:
-            continue
+        apt_num_img = partition_around_marker(img, center, chip_config['apt_num_margins'])
+        apt_num_digit_imgs = partition_digit_images(apt_num_img, chip_config['apt_num_digit_bounds'])
 
-        imgs.append(dict(
+        st_num_img = partition_around_marker(img, center, chip_config['st_num_margins'])
+        st_num_digit_imgs = partition_digit_images(st_num_img, chip_config['st_num_digit_bounds'])
+
+        partitions.append(dict(
             marker_center=center,
             apartment_image=apt_img,
-            apartment_num_image=apt_num_img
+            apartment_num_image=apt_num_img,
+            apartment_num_digit_images=apt_num_digit_imgs,
+            street_num_image=st_num_img,
+            street_num_digit_images=st_num_digit_imgs
         ))
-    return imgs
+    return partitions
+
+
+def extract(image, marker_model, chip_config, digit_model=None, cell_model=None, chip_scaling=False):
+
+    if image.ndim != 3 or image.dtype != np.uint8 or image.shape[2] != 3:
+        raise ValueError(
+            'Expecting RGB uint8 image, not image with shape {} and type {}'
+                .format(image.shape, image.dtype)
+        )
+
+    ##################
+    ## Extract Markers
+    ##################
+
+    # Determine center points of markers
+    centers = marker_extraction.extract(image, marker_model)
+
+    # Determine marker neighbors based on an angular offset threshold and proximity
+    neighbors = marker_extraction.get_marker_neighbors(centers.values, angle_range=(-25, 25))
+
+    ########################
+    ## Apply Transformations
+    ########################
+
+    # Infer the overall rotation and scale of the image as the median of those same
+    # quantities determined for each adjacent marker pair
+    rotation, scale = neighbors['angle'].median(), neighbors['distance'].median()
+
+    # Apply the inferred transformations to the raw image (and marker locations since
+    # they will be used as the basis for extracting necessary patches)
+    scale_factor = None
+    if chip_scaling:
+        scale_factor = chip_config['target_scale_factor'] / scale
+
+    norm_image, norm_centers = apply_normalization(image, centers, rotation=rotation, scale=scale_factor)
+
+    # Rotation and rescaling may result in a change of bit depth which should be undone
+    # as soon as possible to maintain consistency with uint8 processing
+    if norm_image.dtype != np.uint8:
+        assert np.all(norm_image >= 0) and np.all(norm_image <= 1)
+        norm_image = rescale_intensity(norm_image, in_range=(0, 1), out_range=np.uint8).astype(np.uint8)
+
+    ################################
+    ## Extract Around Marker Offsets
+    ################################
+
+    partitions = partition_chip(norm_image, norm_centers, chip_config)
+
+    # Add digit inference to address images if a digit model was provided
+    if digit_model is not None:
+        for partition in partitions:
+            partition['apartment_num_digits'], partition['apartment_num_digit_scores'] = digit_extraction\
+                .extract_single_digits(partition['apartment_num_digit_images'], digit_model)
+            partition['street_num_digits'], partition['street_num_digit_scores'] = digit_extraction\
+                .extract_single_digits(partition['street_num_digit_images'], digit_model)
+
+    # Add cell inference if cell model was provided
+    if cell_model is not None:
+        for partition in partitions:
+            partition['cells'] = cell_extraction.extract(partition['apartment_image'], cell_model)
+
+    return partitions, norm_image, norm_centers, neighbors, rotation, scale
+
+
+def visualize_partition(partition, prep_fn=None):
+    import matplotlib.pyplot as plt
+
+    imgs = []
+
+    imgs.append(partition['apartment_image'])
+
+    imgs.append(partition['apartment_num_image'])
+    imgs.extend(partition['apartment_num_digit_images'])
+
+    imgs.append(partition['street_num_image'])
+    imgs.extend(partition['street_num_digit_images'])
+
+    ncol = 3
+    nrow = int(np.ceil(len(imgs) / ncol))
+    fig, ax = plt.subplots(nrow, ncol)
+    fig.set_size_inches(12, 12)
+    ax = ax.ravel()
+    for a in ax:
+        a.axis('off')
+    for i, img in enumerate(imgs):
+        ax[i].imshow(img if prep_fn is None else prep_fn(img))
+        ax[i].axis('on')
+
+
+
