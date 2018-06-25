@@ -1,4 +1,4 @@
-FROM tensorflow/tensorflow:1.8.0-gpu-py3
+FROM tensorflow/tensorflow:1.7.0-gpu-py3
 ARG LAB_DIR=/lab
 ARG REPO_DIR=/lab/repos
 ARG DATA_DIR=/lab/data
@@ -26,7 +26,7 @@ RUN cd $REPO_DIR && git clone https://github.com/hammerlab/cvutils.git
 
 # Add any source directories for development to python search path
 RUN mkdir -p $(python -m site --user-site) && \
-    echo "$CELLDOM_REPO_DIR/python" > $(python -m site --user-site)/local.pth && \
+    echo "$CELLDOM_REPO_DIR/python/source" > $(python -m site --user-site)/local.pth && \
     echo "$CVUTILS_REPO_DIR/python" >> $(python -m site --user-site)/local.pth
 
 # Set useful development environment variables (override on run if necessary)

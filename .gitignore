@@ -1,7 +1,7 @@
 # Local-only data directories
 logs/
-notebooks/*/models/
-notebooks/*/exports/
+legacy/notebooks/models/
+legacy/notebooks/exports/
 
 *.DS_Store
 .idea
