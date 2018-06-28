@@ -11,7 +11,7 @@ export CELLDOM_DATA_DIR=/data/disk2/celldom
 export CELLDOM_REPO_DIR=$HOME/repos/celldom
 export CVUTILS_REPO_DIR=$HOME/repos/cvutils
 export SVHN_REPO_DIR=$HOME/repos/misc/SVHN-Classifier
-export CONFIG_NUM_GPUS_TRAIN=1
+export CONFIG_NUM_GPUS_TRAIN=2
 
 nvidia-docker run --rm -ti -p 8888:8888 -p 6006:6006 \
 -v $CELLDOM_DATA_DIR:/lab/data/celldom \
