@@ -4,10 +4,15 @@ import celldom
 import logging
 import tempfile
 import pandas as pd
+from collections import OrderedDict
 from celldom import io as celldom_io
 from celldom.config import cell_config, marker_config
+from celldom.extract import DPF_NONE
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_CELL_STAT_ATTRS = ['area', 'solidity', 'eccentricity']
+DEFAULT_CELL_STAT_NAMES = ['mean', 'std', 'min', 'max']
 
 
 def get_cytometer_config_from_name(name):
@@ -79,11 +84,17 @@ class HDF5Datastore(Datastore):
         self.store.close()
 
 
-class ChipImage(object):
+class Acquisition(object):
 
     def __init__(self, path, properties):
         self.path = path
         self.properties = properties
+
+    def load_image(self, dataset_class):
+        dataset = dataset_class()
+        dataset.initialize([self.path])
+        dataset.prepare()
+        return dataset.load_image(0)
 
 
 class CytometerConfig(object):
@@ -94,10 +105,11 @@ class CytometerConfig(object):
 
 class Cytometer(object):
 
-    def __init__(self, config, data_dir, properties=None):
+    def __init__(self, config, data_dir, properties=None, chip_config=None):
         self.config = config
         self.data_dir = data_dir
         self.properties = properties
+        self.chip_config = chip_config or celldom.get_default_chip_config()
         self.datastore = None
         self.initialized = False
 
@@ -145,9 +157,79 @@ class Cytometer(object):
         if not self.initialized:
             raise ValueError('Cytometer cannot be used until initialzed (call `cytometer.initialize` first)')
 
-    def analyze(self, chip_image_path, properties=None):
+    def process(self, acquisition, dpf=DPF_NONE):
+        acq_data, apt_data = self.analyze(acquisition, dfp=dpf)
+        # TODO: Need to integrate experiment_config and use that to write out data
+
+
+    def analyze(self, acquisition, dpf=DPF_NONE):
         _check_initialized()
 
-        pass
-        # merge chip results metadata to cytometer metadata
-        # Append to HDF5 store
+        # Prepare single image dataset
+        # Note that while this may seem unnecessary for loading images, it used here because
+        # the "*Dataset" implementations often include image specific pre-processing that should
+        # be applied -- and in this case that means reflection and uint8 conversion)
+        image = acquisition.load_image(marker_dataset.MarkerDataset)
+
+        # Extract all relevant information
+        partitions, norm_image, norm_centers, neighbors, rotation, scale = apartment_extraction.extract(
+            image, self.marker_model, self.chip_config,
+            digit_model=self.digit_model, cell_model=self.cell_model, focus_model=self.focus_model,
+            chip_scaling=False, dpf=dpf
+        )
+
+        acq_data = pd.Series({
+            'acq_image_shape': image.shape,
+            'acq_norm_image': norm_image if dpf.acq_norm_image else None,
+            'apt_count': len(partitions),
+            'rotation': rotation,
+            'scale': scale,
+        })
+        apt_data = pd.DataFrame([_prepare(partition, dpf) for partition in partitions])
+
+        return acq_data, apt_data
+
+    def _prepare(self, partition, dpf):
+        r = pd.Series(partition)
+
+        # Summarize cells
+        cells = r['cells']
+        r['cell_count'] = len(cells)
+        r = r.append(_get_cell_stats(cells))
+
+        # Remove images in result if indicated that they should not be saved in isf (ImageSaveFlags)
+        dpf_dict = dpf._asdict()
+        r = r.drop([
+            p for p in r.filter(regex='image$|images$').index.values
+            if p in dpf_dict and not dpf_dict[p]
+        ])
+
+        return r
+
+
+def _get_cell_stats(
+        cells,
+        attrs=DEFAULT_CELL_STAT_ATTRS,
+        stats=DEFAULT_CELL_STAT_NAMES,
+        percentiles=None):
+    """Fetch cell statistic summaries
+
+    Returns:
+        A series with keys like "cell_area_min", "cell_area_max", "cell_area_std", "cell_solidity_mean", etc.
+    """
+
+    def get_stats(x, name):
+        return (
+            pd.Series(x)
+            .describe(percentiles=percentiles)
+            .loc[stats]
+            # Replace percent signs in percentile values
+            .rename(lambda v: 'p' + v.replace('%', '') if '%' in v else v)
+            .add_prefix('cell_' + name + '_')
+        )
+
+    # Aggregate series of statistics for all given attributes
+    return pd.concat([
+        get_stats([getattr(c, attr, None) for c in cells], attr)
+        for attr in attrs
+    ])

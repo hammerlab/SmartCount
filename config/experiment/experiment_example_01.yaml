@@ -1,0 +1,13 @@
+name: Test Experiment 1
+metadata:
+  fields:
+    datetime:
+      regex: '[0-9]{8}'
+      format: '%Y%m%d%%H%M%S'
+    treatment: 'Drug|NoDrug'
+    concentration: 'High|Low'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+  path_format: '{datetime}/{treatment}/BF_{concentration}-{street}-{apartment}.tif'
+  primary_fields: [treatment, concentration]
+  secondary_fields: [street, apartment]

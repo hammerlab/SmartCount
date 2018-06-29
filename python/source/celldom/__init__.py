@@ -13,13 +13,10 @@ ENV_CELLDOM_CACHE_DIR = 'CELLDOM_CACHE_DIR'
 ENV_CELLDOM_MAX_DOWNLOAD_ATTEMPTS = 'CELLDOM_MAX_DOWNLOAD_ATTEMPTS'
 ENV_CELLDOM_GPU_MEMORY_FRACTION = 'CELLDOM_GPU_MEMORY_FRACTION'
 ENV_CELLDOM_NB_LOG_LEVEL = 'CELLDOM_NB_LOG_LEVEL'
+ENV_CELLDOM_DEFAULT_CHIP_NAME = 'CELLDOM_DEFAULT_CHIP_NAME'
+
 DEFAULT_VERSION = 'r0.2'
-
-
-# Force the cvutils mrcnn model module to use this path for loadining pretrained mrcnn
-# models if not already set in environment
-if 'MASK_RCNN_CACHE_DIR' not in os.environ:
-    os.environ['MASK_RCNN_CACHE_DIR'] = osp.join(get_cache_dir(), 'models', 'pretrained', 'mrcnn')
+DEFAULT_CHIP_NAME = 'chip_01'
 
 
 def get_version():
@@ -95,6 +92,10 @@ def read_config(path):
         return yaml.load(fd)
 
 
+def get_default_chip_config():
+    return get_chip_config(os.getenv(ENV_CELLDOM_DEFAULT_CHIP_NAME, DEFAULT_CHIP_NAME))
+
+
 def get_chip_config(name):
     """Get a chip configuration object
 
@@ -141,3 +142,13 @@ def initialize_keras_session():
     tf_session_conf = get_tf_session_config()
     KTF.set_session(tf.Session(config=tf_session_conf))
     return tf_session_conf
+
+
+############
+# Preloads #
+############
+
+# Force the cvutils mrcnn model module to use this path for loadining pretrained mrcnn
+# models if not already set in environment
+if 'MASK_RCNN_CACHE_DIR' not in os.environ:
+    os.environ['MASK_RCNN_CACHE_DIR'] = osp.join(get_cache_dir(), 'models', 'pretrained', 'mrcnn')

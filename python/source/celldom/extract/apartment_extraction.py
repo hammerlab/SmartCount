@@ -1,8 +1,9 @@
-from skimage import transform
-from skimage.exposure import rescale_intensity
 import pandas as pd
 import numpy as np
-from celldom.preprocessing import marker_extraction, digit_extraction, cell_extraction
+from skimage import transform
+from skimage.exposure import rescale_intensity
+from celldom.extract import marker_extraction, digit_extraction, cell_extraction
+from celldom.extract import DPF_NONE
 
 
 def _rotate_vectors_2d(arr, rotation, origin):
@@ -67,7 +68,7 @@ def partition_digit_images(img, bounds):
     return [img[:, b[0]:b[1]] for b in bounds]
 
 
-def partition_chip(img, centers, chip_config):
+def partition_chip(img, centers, chip_config, focus_model=None):
     """Extract all relevant patches from raw, multi-component images (ie a chip)"""
     partitions = []
     for i, r in centers.astype(int).iterrows():
@@ -77,6 +78,11 @@ def partition_chip(img, centers, chip_config):
         if apt_img is None:
             continue
 
+        # If an image focus/quality model was given, use it to score the apartment image
+        focus_score = None
+        if focus_model is not None:
+            focus_score = focus_model.score(apt_img)
+
         apt_num_img = partition_around_marker(img, center, chip_config['apt_num_margins'])
         apt_num_digit_imgs = partition_digit_images(apt_num_img, chip_config['apt_num_digit_bounds'])
 
@@ -85,21 +91,26 @@ def partition_chip(img, centers, chip_config):
 
         partitions.append(dict(
             marker_center=center,
-            apartment_image=apt_img,
-            apartment_num_image=apt_num_img,
-            apartment_num_digit_images=apt_num_digit_imgs,
-            street_num_image=st_num_img,
-            street_num_digit_images=st_num_digit_imgs
+            apt_image=apt_img,
+            apt_image_shape=apt_img.shape,
+            focus_score=focus_score,
+            apt_num_image=apt_num_img,
+            apt_num_digit_images=apt_num_digit_imgs,
+            st_num_image=st_num_img,
+            st_num_digit_images=st_num_digit_imgs
         ))
     return partitions
 
 
-def extract(image, marker_model, chip_config, digit_model=None, cell_model=None, chip_scaling=False):
+def extract(
+        image, marker_model, chip_config,
+        digit_model=None, cell_model=None, focus_model=None,
+        chip_scaling=False, dpf=DPF_NONE):
 
     if image.ndim != 3 or image.dtype != np.uint8 or image.shape[2] != 3:
         raise ValueError(
             'Expecting RGB uint8 image, not image with shape {} and type {}'
-                .format(image.shape, image.dtype)
+            .format(image.shape, image.dtype)
         )
 
     ##################
@@ -138,20 +149,20 @@ def extract(image, marker_model, chip_config, digit_model=None, cell_model=None,
     ## Extract Around Marker Offsets
     ################################
 
-    partitions = partition_chip(norm_image, norm_centers, chip_config)
+    partitions = partition_chip(norm_image, norm_centers, chip_config, focus_model=focus_model)
 
     # Add digit inference to address images if a digit model was provided
     if digit_model is not None:
         for partition in partitions:
-            partition['apartment_num_digits'], partition['apartment_num_digit_scores'] = digit_extraction\
-                .extract_single_digits(partition['apartment_num_digit_images'], digit_model)
-            partition['street_num_digits'], partition['street_num_digit_scores'] = digit_extraction\
-                .extract_single_digits(partition['street_num_digit_images'], digit_model)
+            partition['apt_num'], partition['apt_num_digit_scores'] = digit_extraction\
+                .extract_single_digits(partition['apt_num_digit_images'], digit_model)
+            partition['st_num'], partition['st_num_digit_scores'] = digit_extraction\
+                .extract_single_digits(partition['st_num_digit_images'], digit_model)
 
     # Add cell inference if cell model was provided
     if cell_model is not None:
         for partition in partitions:
-            partition['cells'] = cell_extraction.extract(partition['apartment_image'], cell_model)
+            partition['cells'] = cell_extraction.extract(partition['apt_image'], cell_model, chip_config, dpf=dpf)
 
     return partitions, norm_image, norm_centers, neighbors, rotation, scale
 
@@ -161,13 +172,13 @@ def visualize_partition(partition, prep_fn=None):
 
     imgs = []
 
-    imgs.append(partition['apartment_image'])
+    imgs.append(partition['apt_image'])
 
-    imgs.append(partition['apartment_num_image'])
-    imgs.extend(partition['apartment_num_digit_images'])
+    imgs.append(partition['apt_num_image'])
+    imgs.extend(partition['apt_num_digit_images'])
 
-    imgs.append(partition['street_num_image'])
-    imgs.extend(partition['street_num_digit_images'])
+    imgs.append(partition['st_num_image'])
+    imgs.extend(partition['st_num_digit_images'])
 
     ncol = 3
     nrow = int(np.ceil(len(imgs) / ncol))
