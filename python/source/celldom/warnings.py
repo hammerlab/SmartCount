@@ -15,3 +15,11 @@ def disable_mrcnn_warnings():
         'ignore', category=UserWarning,
         message='Anti-aliasing will be enabled by default in skimage 0.15 to avoid aliasing artifacts'
     )
+
+
+def disable_skimage_warnings():
+    # Ignore these warnings for now as they seem to be irrelevant
+    warnings.filterwarnings(
+        'ignore', category=UserWarning,
+        message='Anti-aliasing will be enabled by default in skimage 0.15 to avoid aliasing artifacts when down-sampling images'
+    )

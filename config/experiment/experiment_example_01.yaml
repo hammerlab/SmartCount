@@ -1,13 +1,16 @@
 name: Test Experiment 1
+chip: {name: chip_01}
+cytometer: {name: cytometer_01}
 metadata:
+  # Example file path: 2018.05.31.1610 MOLM13 NoDrug 1Mperml Chip2/BF_ST_000_APT_000_zm3.tif
   fields:
     datetime:
-      regex: '[0-9]{8}'
-      format: '%Y%m%d%%H%M%S'
-    treatment: 'Drug|NoDrug'
-    concentration: 'High|Low'
+      regex: '[0-9.]{15}'
+      format: '%Y.%m.%d.%H%M'
+    cohort: 'NoDrug|1nMQuiz'
+    concentration: '[1I]Mperml'
+    chip: 'Chip2'
     street: '[0-9]{3}'
     apartment: '[0-9]{3}'
-  path_format: '{datetime}/{treatment}/BF_{concentration}-{street}-{apartment}.tif'
-  primary_fields: [treatment, concentration]
-  secondary_fields: [street, apartment]
+    z: 'z[_mp][0-9]{1}'
+  path_format: '.*{datetime} MOLM13 {cohort} {concentration} {chip}/BF_ST_{street}_APT_{apartment}_{z}.tif'

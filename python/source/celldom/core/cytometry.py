@@ -4,41 +4,29 @@ import celldom
 import logging
 import tempfile
 import pandas as pd
+import numpy as np
+import hashlib
 from collections import OrderedDict
 from celldom import io as celldom_io
 from celldom.config import cell_config, marker_config
-from celldom.extract import DPF_NONE
+from celldom.dataset import marker_dataset
+from celldom.extract import NO_IMAGES, apartment_extraction
+from celldom.utils import assert_rgb
+from celldom.warnings import disable_skimage_warnings
+
+# Disable known skimage warnings relating to this module and its usage
+disable_skimage_warnings()
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CELL_STAT_ATTRS = ['area', 'solidity', 'eccentricity']
-DEFAULT_CELL_STAT_NAMES = ['mean', 'std', 'min', 'max']
+DEFAULT_CELL_STAT_PERCENTILES = [.1, .5, .9]
+DEFAULT_CELL_STAT_NAMES = ['mean', 'std', 'p10', 'p50', 'p90']
+DEFAULT_STRING_SIZE = 64
+ACQ_PROP_PREFIX = 'acq_'
 
 
-def get_cytometer_config_from_name(name):
-    """Get a cytometer config by name (resolves to file in repo)
-
-    Args:
-        name: Name of cytometer (assumed to be a filename minus extension present in CELLDOM_REPO_DIR/config/cytometer);
-            e.g. 'cytometer_01'
-    Returns:
-        CytometerConfig
-    """
-    return _deserialize(celldom.get_cytometer_config(name))
-
-
-def get_cytometer_config_from_path(path):
-    """Get a cytometer config from local file
-
-    Args:
-        path: Path to cytometer configuration file
-    Returns:
-        CytometerConfig
-    """
-    return _deserialize(celldom.read_config(path))
-
-
-def _deserialize(config):
+def _resolve_paths(config):
     model_config = config['resources']['models']
 
     model_paths = {}
@@ -57,7 +45,7 @@ def _deserialize(config):
         else:
             raise ValueError('Model location type "{}" not valid (should be "file" or "url")'.format(location_type))
 
-    return CytometerConfig(model_paths)
+    return model_paths
 
 
 class Datastore(object):
@@ -69,47 +57,73 @@ class Datastore(object):
 
 
 def _initialize_data_dir(data_dir):
-    os.makedirs(self.data_dir, exist_ok=True)
+    os.makedirs(data_dir, exist_ok=True)
     return data_dir
 
 
 class HDF5Datastore(Datastore):
 
-    def __init__(self, data_dir):
+    def __init__(self, data_dir, data_mode):
         """Datastore implementation based on local HDF5 files"""
         self.data_dir = _initialize_data_dir(data_dir)
-        self.store = pd.HDFStore(self.data_dir)
+        self.data_file = osp.join(self.data_dir, 'data.h5')
+        self.store = pd.HDFStore(self.data_file, mode=data_mode)
 
     def close(self):
         self.store.close()
 
+    def save_df(self, key, df, **kwargs):
+        if len(df) > 0:
+            self.store.append(key, df, **kwargs)
+
+
+def get_readonly_datastore(data_dir):
+    return HDF5Datastore(data_dir, 'r').store
+
 
 class Acquisition(object):
 
-    def __init__(self, path, properties):
+    def __init__(self, path, properties=None):
         self.path = path
-        self.properties = properties
+        # As an instance attribute, this may be useful for bypassing property inference
+        # in the future (but for now it does nothing)
+        self._properties = properties
 
-    def load_image(self, dataset_class):
+    def load_image(self, dataset_class=marker_dataset.MarkerDataset):
+        """Load the image associated with this acquisition while accounting for preprocessing"""
         dataset = dataset_class()
         dataset.initialize([self.path])
         dataset.prepare()
         return dataset.load_image(0)
 
+    def infer_properties(self, exp_config):
+        if self._properties is not None:
+            raise ValueError('Cannot infer properties for acquisition if already explicitly defined')
+        props = exp_config.parse_path(self.path)
+        if 'id' in props:
+            raise ValueError(
+                'Properties inferred from paths cannot include an "id" attribute (properties = {})'
+                .format(props)
+            )
+        props['id'] = self._generate_id(props)
+        return props
 
-class CytometerConfig(object):
+    def _generate_id(self, props):
+        keys = sorted(list(props.keys()))
+        key = ':'.join([str(props[k]) for k in keys])
+        return hashlib.md5(key.encode('utf-8')).hexdigest()
 
-    def __init__(self, model_paths):
-        self.model_paths = model_paths
 
 
 class Cytometer(object):
 
-    def __init__(self, config, data_dir, properties=None, chip_config=None):
+    def __init__(self, config, data_dir, data_mode='w'):
         self.config = config
+        self.model_paths = _resolve_paths(config.get_cytometer_config())
+        self.chip_config = config.get_chip_config()
         self.data_dir = data_dir
-        self.properties = properties
-        self.chip_config = chip_config or celldom.get_default_chip_config()
+        self.data_mode = data_mode
+
         self.datastore = None
         self.initialized = False
 
@@ -117,9 +131,14 @@ class Cytometer(object):
         self.__enter__()
 
     def shutdown(self):
-        self.__exit__()
+        self.__exit__(None, None, None)
 
     def __enter__(self):
+        import tensorflow as tf
+
+        # This probably belongs elsewhere, but try to eliminate TF warnings here anyways
+        tf.logging.set_verbosity(logging.ERROR)
+
         import keras
         from cvutils.mrcnn import model as mrcnn_model
         from celldom.miq import miq
@@ -128,48 +147,58 @@ class Cytometer(object):
         tf_conf = celldom.initialize_keras_session()
 
         # Initialize datastore to maintain results
-        self.datastore = HDF5Datastore(data_dir)
+        self.datastore = HDF5Datastore(self.data_dir, self.data_mode)
 
         # Initialize predictive models
-        self.digit_model = keras.models.load_model(self.config.model_paths['digit'])
+        self.digit_model = keras.models.load_model(self.model_paths['digit'])
         self.marker_model = mrcnn_model.get_model(
             'inference', marker_config.MarkerInferenceConfig(), tempfile.mkdtemp(),
-            init_with='file', file=self.config.model_paths['marker']
+            init_with='file', file=self.model_paths['marker']
         )
         self.cell_model = mrcnn_model.get_model(
             'inference', cell_config.CellInferenceConfig(), tempfile.mkdtemp(),
-            init_with='file', file=self.config.model_paths['cell']
+            init_with='file', file=self.model_paths['cell']
         )
         self.focus_model = miq.get_classifier(tf_conf)
         self.initialized = True
+        return self
 
     def __exit__(self, type, value, traceback):
+        if type:
+            raise value
+
         from keras import backend
 
         # Close or clear sessions as well as possible (maybe there are more comprehensive ways?)
         backend.clear_session()
-        self.focus_model._sess.close()
+        if self.focus_model is not None:
+            self.focus_model._sess.close()
 
         # Close underlying dataset and assume it will never be used again
-        self.datastore.close()
+        if self.datastore is not None:
+            self.datastore.close()
+
+        return True
 
     def _check_initialized(self):
         if not self.initialized:
-            raise ValueError('Cytometer cannot be used until initialzed (call `cytometer.initialize` first)')
+            raise ValueError('Cytometer cannot be used until initialized (call `cytometer.initialize` first)')
 
-    def process(self, acquisition, dpf=DPF_NONE):
-        acq_data, apt_data = self.analyze(acquisition, dfp=dpf)
-        # TODO: Need to integrate experiment_config and use that to write out data
-
-
-    def analyze(self, acquisition, dpf=DPF_NONE):
-        _check_initialized()
+    def analyze(self, acquisition, dpf=NO_IMAGES):
+        self._check_initialized()
 
         # Prepare single image dataset
         # Note that while this may seem unnecessary for loading images, it used here because
         # the "*Dataset" implementations often include image specific pre-processing that should
         # be applied -- and in this case that means reflection and uint8 conversion)
         image = acquisition.load_image(marker_dataset.MarkerDataset)
+
+        # At this point, the image should always be 8-bit RGB
+        assert_rgb(image)
+
+        # Infer properties associated with the given acquisition based on file path
+        properties = acquisition.infer_properties(self.config)
+        properties['processed_at'] = pd.to_datetime('now')
 
         # Extract all relevant information
         partitions, norm_image, norm_centers, neighbors, rotation, scale = apartment_extraction.extract(
@@ -178,58 +207,132 @@ class Cytometer(object):
             chip_scaling=False, dpf=dpf
         )
 
-        acq_data = pd.Series({
-            'acq_image_shape': image.shape,
-            'acq_norm_image': norm_image if dpf.acq_norm_image else None,
-            'apt_count': len(partitions),
-            'rotation': rotation,
-            'scale': scale,
-        })
-        apt_data = pd.DataFrame([_prepare(partition, dpf) for partition in partitions])
+        acq_data = pd.DataFrame([dict(
+            raw_image_path=acquisition.path,
+            raw_image_shape_height=image.shape[0],
+            raw_image_shape_width=image.shape[1],
+            raw_norm_image=norm_image if dpf.raw_norm_image else None,
+            apt_count=len(partitions),
+            rotation=rotation,
+            scale=scale
+        )])
 
-        return acq_data, apt_data
+        # Extract a data frame with rows representing each cell
+        # Note: If you don't keep empty data frames out of the list to concatenate,
+        # it messes up the data types of results
+        cell_data = pd.concat([self._prepare_cells(r) for r in partitions if len(r['cells']) > 0])
 
-    def _prepare(self, partition, dpf):
-        r = pd.Series(partition)
+        # Compute cell stats at apartment level and drop cells field
+        apt_data = pd.DataFrame([self._prepare_apt(r, dpf) for r in partitions])
+
+        # Assign extra global, inferred information to all datasets
+        acq_data, apt_data, cell_data = [
+            _assign_properties(d, ACQ_PROP_PREFIX, properties)
+            for d in [acq_data, apt_data, cell_data]
+        ]
+
+        # Return column-sorted results
+        return acq_data.sort_index(axis=1), apt_data.sort_index(axis=1), cell_data.sort_index(axis=1)
+
+    def _prepare_cells(self, r):
+        """Convert list of cell dicts for one apartment to data frame"""
+        return pd.DataFrame(r['cells'])\
+            .assign(apt_id=r['apt_id'], apt_num=r['apt_num'], st_num=r['st_num'])
+
+    def _prepare_apt(self, r, dpf):
+        r = pd.Series(r)
 
         # Summarize cells
         cells = r['cells']
         r['cell_count'] = len(cells)
         r = r.append(_get_cell_stats(cells))
 
-        # Remove images in result if indicated that they should not be saved in isf (ImageSaveFlags)
-        dpf_dict = dpf._asdict()
-        r = r.drop([
-            p for p in r.filter(regex='image$|images$').index.values
-            if p in dpf_dict and not dpf_dict[p]
-        ])
+        # Drop the value of any image fields not flagged for persistence
+        for image_field in _get_image_fields(r.index.values, dpf):
+            r[image_field] = None
 
-        return r
+        return r.drop('cells')
+
+    def save(self, acq_data, apt_data, cell_data):
+        self._save('table_acquisition', acq_data)
+        self._save('table_apartment', apt_data)
+        self._save('table_cell', cell_data)
+        return self
+
+    def _save(self, key, df):
+        d = df.copy()
+
+        # Convert non-numeric fields to truncated strings (and remove any image fields)
+        col_sizes = {}
+        object_cols = d.select_dtypes('object').columns.values
+        for c in object_cols:
+            # Drop image fields and move on
+            if _is_image_field(c):
+                d = d.drop(c, axis=1)
+                continue
+
+            # Make a hacky string size exception for file paths (which are much longer)
+            # and ids (which are fixed size)
+            if c == 'raw_image_path':
+                col_sizes[c] = 256
+            elif c == ACQ_PROP_PREFIX + 'id':
+                col_sizes[c] = 32  # These are md5s
+            else:
+                col_sizes[c] = DEFAULT_STRING_SIZE
+            d[c] = d[c].apply(lambda v: None if v is None else str(v)[:col_sizes[c]])
+
+        # Create list of indexed fields
+        index_columns = d.filter(regex='^' + ACQ_PROP_PREFIX).columns.tolist()
+        for c in ['apt_num', 'st_num']:
+            if c in d:
+                index_columns.append(c)
+        self.datastore.save_df(key, d, min_itemsize=col_sizes, data_columns=index_columns)
+
+
+def _assign_properties(d, prefix, properties):
+    p = {(prefix + k): v for k, v in properties.items()}
+    if isinstance(d, pd.DataFrame):
+        return d.assign(**p)
+    elif isinstance(d, pd.Series):
+        return d.append(pd.Series(p))
+    else:
+        raise ValueError('Data must be frame or series not {}'.format(type(d)))
+
+
+def _is_image_field(field):
+    return field.endswith('image') or field.endswith('images')
+
+
+def _get_image_fields(fields, dpf):
+    dpf_dict = dpf._asdict()
+    return [
+       f for f in fields
+       if _is_image_field(f) and f in dpf_dict and not dpf_dict[f]
+    ]
 
 
 def _get_cell_stats(
         cells,
         attrs=DEFAULT_CELL_STAT_ATTRS,
         stats=DEFAULT_CELL_STAT_NAMES,
-        percentiles=None):
+        percentiles=DEFAULT_CELL_STAT_PERCENTILES):
     """Fetch cell statistic summaries
 
     Returns:
         A series with keys like "cell_area_min", "cell_area_max", "cell_area_std", "cell_solidity_mean", etc.
     """
-
     def get_stats(x, name):
         return (
             pd.Series(x)
             .describe(percentiles=percentiles)
-            .loc[stats]
             # Replace percent signs in percentile values
             .rename(lambda v: 'p' + v.replace('%', '') if '%' in v else v)
+            .filter(stats)
             .add_prefix('cell_' + name + '_')
         )
 
     # Aggregate series of statistics for all given attributes
     return pd.concat([
-        get_stats([getattr(c, attr, None) for c in cells], attr)
+        get_stats([c.get(attr, np.nan) for c in cells], attr)
         for attr in attrs
     ])

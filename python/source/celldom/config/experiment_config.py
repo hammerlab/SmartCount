@@ -1,13 +1,13 @@
 import re
 import pandas as pd
+import celldom
 
 
 class ExperimentConfig(object):
 
     def __init__(self, conf):
         self.conf = conf
-        self.field_names = None
-        self._initialize()
+        self._validate()
 
     @property
     def _path_format(self):
@@ -31,12 +31,34 @@ class ExperimentConfig(object):
 
     @property
     def path_regex(self):
-        replacements = {k: '(?P<{}>{})'.format(k, v) for k, v in self._field_regex.items()}
+        replacements = {k: '(?P<{}>{})'.format(k, v) for k, v in self.field_regex.items()}
         return self._path_format.format(**replacements)
 
     @property
     def path_field_names(self):
         return re.findall(r"{(\w+)}", self._path_format)
+
+    def _get_config(self, typ):
+        if typ not in self.conf:
+            raise ValueError('Experiment configuration does not have required property "{}"'.format(typ))
+
+        res = None
+        if 'path' in self.conf[typ]:
+            res = celldom.read_config(self.conf[typ]['path'])
+        elif 'name' in self.conf[typ]:
+            res = celldom.get_config(typ, self.conf[typ]['name'])
+        if res is None:
+            raise ValueError(
+                '{} configuration "{}" does not have one of "path" or "name"'
+                .format(typ.title(), self.conf[typ])
+            )
+        return res
+
+    def get_cytometer_config(self):
+        return self._get_config('cytometer')
+
+    def get_chip_config(self):
+        return self._get_config('chip')
 
     def _validate(self):
         path_field_names = sorted(self.path_field_names)

@@ -1,5 +1,6 @@
 import os
 import os.path as osp
+import yaml
 
 ENV_SEED = 'SEED'
 seed = int(os.getenv(ENV_SEED, 38923))
@@ -13,10 +14,8 @@ ENV_CELLDOM_CACHE_DIR = 'CELLDOM_CACHE_DIR'
 ENV_CELLDOM_MAX_DOWNLOAD_ATTEMPTS = 'CELLDOM_MAX_DOWNLOAD_ATTEMPTS'
 ENV_CELLDOM_GPU_MEMORY_FRACTION = 'CELLDOM_GPU_MEMORY_FRACTION'
 ENV_CELLDOM_NB_LOG_LEVEL = 'CELLDOM_NB_LOG_LEVEL'
-ENV_CELLDOM_DEFAULT_CHIP_NAME = 'CELLDOM_DEFAULT_CHIP_NAME'
 
 DEFAULT_VERSION = 'r0.2'
-DEFAULT_CHIP_NAME = 'chip_01'
 
 
 def get_version():
@@ -83,8 +82,8 @@ def get_repo_dir():
 # Application Configuration #
 #############################
 
-def _get_config(typ, name):
-    return read_config(osp.join(celldom.get_repo_dir(), 'config', typ, name + '.yaml'))
+def get_config(typ, name):
+    return read_config(osp.join(get_repo_dir(), 'config', typ, name + '.yaml'))
 
 
 def read_config(path):
@@ -92,37 +91,10 @@ def read_config(path):
         return yaml.load(fd)
 
 
-def get_default_chip_config():
-    return get_chip_config(os.getenv(ENV_CELLDOM_DEFAULT_CHIP_NAME, DEFAULT_CHIP_NAME))
-
-
-def get_chip_config(name):
-    """Get a chip configuration object
-
-    Args:
-        name: Name of chip (assumed to be a filename minus extension present in CELLDOM_REPO_DIR/config/chip);
-            e.g. 'chip_01'
-    Return:
-        Deserialized configuration object
-    """
-    return _get_config('chip', name)
-
-
-def get_cytometer_config(name):
-    """Get a cytometer configuration object
-
-    Args:
-        name: Name of cytometer (assumed to be a filename minus extension present in CELLDOM_REPO_DIR/config/cytometer);
-            e.g. 'cytometer_01'
-    Returns:
-        Deserialized configuration object
-    """
-    return _get_config('cytometer', name)
-
-
 ###############################
 # Tensorflow/Keras Management #
 ###############################
+
 
 def get_gpu_memory_fraction():
     return float(os.getenv(ENV_CELLDOM_GPU_MEMORY_FRACTION, .95))

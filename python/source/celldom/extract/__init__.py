@@ -5,10 +5,10 @@ from collections import namedtuple
 DataPersistenceFlags = namedtuple('DataPersistenceFlags', [
     'apt_image', 'apt_num_image', 'apt_num_digit_images',
     'st_num_image', 'st_num_digit_images', 'cell_image',
-    'acq_norm_image'
+    'raw_norm_image'
 ])
-DPF_NONE = DataPersistenceFlags(
+NO_IMAGES = DataPersistenceFlags(
     apt_image=False, apt_num_image=False, apt_num_digit_images=False,
     st_num_image=False, st_num_digit_images=False, cell_image=False,
-    acq_norm_image=False
+    raw_norm_image=False
 )

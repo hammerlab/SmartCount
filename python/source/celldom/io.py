@@ -17,7 +17,8 @@ def download(url, file):
         return file
     except:
         logger.warning(
-            'An error occurred attempting to download url "%s".  This will be tried again up to a maximum of %s times',
+            'An error occurred attempting to download url "%s".  '
+            'This will be tried again up to a maximum of %s times',
             url, MAX_DOWNLOAD_ATTEMPTS
         )
         raise
@@ -27,8 +28,8 @@ def cache(url, cache_path):
     path = osp.join(celldom.get_cache_dir(), cache_path)
     if not osp.exists(path):
         logger.info(
-            'Downloading model file from "%s"; this may take a while as these files are '
-            'often large ...', url
+            'Downloading model file from "%s" to %s; this may take a while as these files are '
+            'often large ...', url, path
         )
         os.makedirs(osp.dirname(path), exist_ok=True)
         download(url, path)

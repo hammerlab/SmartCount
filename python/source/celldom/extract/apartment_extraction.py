@@ -3,7 +3,8 @@ import numpy as np
 from skimage import transform
 from skimage.exposure import rescale_intensity
 from celldom.extract import marker_extraction, digit_extraction, cell_extraction
-from celldom.extract import DPF_NONE
+from celldom.extract import NO_IMAGES
+from celldom.utils import assert_rgb, rgb2gray
 
 
 def _rotate_vectors_2d(arr, rotation, origin):
@@ -71,17 +72,24 @@ def partition_digit_images(img, bounds):
 def partition_chip(img, centers, chip_config, focus_model=None):
     """Extract all relevant patches from raw, multi-component images (ie a chip)"""
     partitions = []
-    for i, r in centers.astype(int).iterrows():
+
+    # Sort centers to get a non-arbitrary apartment id setting
+    for i, r in centers.astype(int).sort_values(['y', 'x']).iterrows():
         center = r['y'], r['x']
 
         apt_img = partition_around_marker(img, center, chip_config['apt_margins'])
         if apt_img is None:
             continue
 
+        # Ensure that image is RGB
+        assert_rgb(apt_img)
+
         # If an image focus/quality model was given, use it to score the apartment image
         focus_score = None
         if focus_model is not None:
-            focus_score = focus_model.score(apt_img)
+            # Note that images are carried around through most of the codebase as RGB with repeated channels,
+            # and the focus classifier expects 2D images so it is converted here
+            focus_score = focus_model.score(rgb2gray(apt_img))
 
         apt_num_img = partition_around_marker(img, center, chip_config['apt_num_margins'])
         apt_num_digit_imgs = partition_digit_images(apt_num_img, chip_config['apt_num_digit_bounds'])
@@ -90,9 +98,12 @@ def partition_chip(img, centers, chip_config, focus_model=None):
         st_num_digit_imgs = partition_digit_images(st_num_img, chip_config['st_num_digit_bounds'])
 
         partitions.append(dict(
-            marker_center=center,
+            apt_id=i,
+            marker_center_y=center[0],
+            marker_center_x=center[1],
             apt_image=apt_img,
-            apt_image_shape=apt_img.shape,
+            apt_image_height=apt_img.shape[0],
+            apt_image_width=apt_img.shape[1],
             focus_score=focus_score,
             apt_num_image=apt_num_img,
             apt_num_digit_images=apt_num_digit_imgs,
@@ -105,13 +116,10 @@ def partition_chip(img, centers, chip_config, focus_model=None):
 def extract(
         image, marker_model, chip_config,
         digit_model=None, cell_model=None, focus_model=None,
-        chip_scaling=False, dpf=DPF_NONE):
+        chip_scaling=False, dpf=NO_IMAGES):
 
-    if image.ndim != 3 or image.dtype != np.uint8 or image.shape[2] != 3:
-        raise ValueError(
-            'Expecting RGB uint8 image, not image with shape {} and type {}'
-            .format(image.shape, image.dtype)
-        )
+    # Make sure provided image is RGB
+    assert_rgb(image)
 
     ##################
     ## Extract Markers

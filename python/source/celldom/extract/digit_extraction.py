@@ -14,6 +14,6 @@ def prep_digit_image(img):
 def extract_single_digits(digit_imgs, digit_model):
     preds = digit_model.predict(np.stack([prep_digit_image(img) for img in digit_imgs]))
     digits = np.argmax(preds, axis=1)
-    scores = np.max(preds, axis=1)
+    scores = ','.join(['{:.3f}'.format(v) for v in np.max(preds, axis=1)])
     return ''.join([str(d) for d in digits]), scores
 
