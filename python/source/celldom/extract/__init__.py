@@ -12,3 +12,8 @@ NO_IMAGES = DataPersistenceFlags(
     st_num_image=False, st_num_digit_images=False, cell_image=False,
     raw_norm_image=False
 )
+ALL_IMAGES = DataPersistenceFlags(
+    apt_image=True, apt_num_image=True, apt_num_digit_images=True,
+    st_num_image=True, st_num_digit_images=True, cell_image=True,
+    raw_norm_image=True
+)
