@@ -110,5 +110,26 @@ class ExperimentConfig(object):
         return m
 
 
+def get_exp_config_by_name(name):
+    """Load experiment configuration by name
+
+    This is a convenience on this idiom, for more convenient loading
+    of configurations stored within a known repo directory:
+
+    ```
+    # Long version:
+    exp_configuration_path = '/repo/celldom/config/experiment/experiment_example_01.yaml'
+    exp_config = experiment_config.ExperimentConfig(exp_configuration_path)
+
+    # Short version (provided by this function):
+    exp_config = experiment_config.get_experiment_configuration('experiment_example_01')
+    ```
+
+    Args:
+        name: Name of file with known experiment configurations folder
+    Returns:
+        ExperimentConfig object
+    """
+    return ExperimentConfig(celldom.get_config('experiment', name))
 
 

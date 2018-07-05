@@ -8,13 +8,13 @@ ARG CVUTILS_REPO_DIR=$REPO_DIR/cvutils
 
 RUN mkdir -p $LAB_DIR $REPO_DIR $DATA_DIR
 
-RUN apt-get update && apt-get install -y --no-install-recommends git vim libav-tools
+RUN apt-get update && apt-get install -y --no-install-recommends git vim
 
 # Install these specific package versions to avoid their annoying breaking changes
 RUN pip install keras==2.1.6
 RUN pip install scikit-image==0.14.0
 
-RUN pip install jupyterlab matplotlib pandas plotnine Cython papermill tables retrying fire
+RUN pip install jupyterlab matplotlib pandas plotnine Cython papermill tables retrying fire moviepy
 
 # Opencv installation
 RUN apt-get install -y libsm6 libxext6 libfontconfig1 libxrender1
