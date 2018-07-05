@@ -1,27 +1,19 @@
 """Video generation and embedding utilities"""
 import os
 import os.path as osp
+from moviepy.editor import ImageClip, concatenate_videoclips
 
 
-def make_video(images, tmp_dir=None):
+def make_video(images, duration=1):
     """Create an mp4 video from a list of images
 
     Args:
         images: List of images (must have same size)
-        tmp_dir: Working directory; will be created if not specified
-    Returns:
-        Path to generated video
+        duration: Duration of each frame in secons
     """
-    from skimage import io as sk_io
-    import tempfile
-
-    if tmp_dir is None:
-        tmp_dir = tempfile.mkdtemp()
-    for i, img in enumerate(images):
-        sk_io.imsave(osp.join(tmp_dir, 'img_{:03d}.png'.format(i)), img)
-    cmd = 'avconv -framerate 1 -f image2 -i "{}/img_%3d.png" -y {}/video.mp4'.format(tmp_dir, tmp_dir)
-    os.system(cmd)
-    return osp.join(tmp_dir, 'video.mp4')
+    clips = [ImageClip(img).set_duration(duration) for img in images]
+    clips = concatenate_videoclips(clips, method="compose")
+    return clips
 
 
 def embed_video(path):

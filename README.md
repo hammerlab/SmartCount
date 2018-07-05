@@ -34,7 +34,7 @@ nvidia-docker build -t celldom -f Dockerfile.prd .
 # the main storage directory (otherwise, everything you generate in the container is temporary)
 export CELLDOM_DATA_DIR=/data/disk2/celldom
 
-# Set this to be the location of this repository
+# Set this to be the location of this repository on the host system
 export CELLDOM_REPO_DIR=$HOME/repos/celldom
 
 # Run the container, which will show a link to visit in your browser

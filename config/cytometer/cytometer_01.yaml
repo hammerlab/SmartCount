@@ -8,4 +8,4 @@ resources:
       location: 'https://storage.googleapis.com/celldom/models/r0.2/single_digit_model.h5'
     cell:
       type: url
-      location: 'https://storage.googleapis.com/celldom/models/r0.2/cell_model.h5'
+      location: 'https://storage.googleapis.com/celldom/models/r0.3/cell_model.h5'
