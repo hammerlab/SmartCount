@@ -1,6 +1,25 @@
 # Docker Instructions
 
+#### Production Container Instructions
+
+```
+cd $REPOS/celldom/docker
+
+nvidia-docker build -t celldom -f Dockerfile.prd .
+
+export CELLDOM_DATA_DIR=/data/disk2/celldom
+export CELLDOM_REPO_DIR=$HOME/repos/celldom
+
+nvidia-docker run --rm -ti -p 8888:8888 -p 6006:6006 \
+-v $CELLDOM_DATA_DIR:/lab/data/celldom \
+-v $CELLDOM_REPO_DIR:/lab/repos/celldom \
+celldom
+```
+
 #### Development Container Instructions
+
+This is only necessary when developing/testing some repos simultaneously and
+when you intend to train models (as opposed to just use them):
 
 ```
 cd $REPOS/celldom/docker
@@ -21,20 +40,4 @@ nvidia-docker run --rm -ti -p 8888:8888 -p 6006:6006 \
 -e CONFIG_NUM_GPUS_TRAIN=$CONFIG_NUM_GPUS_TRAIN \
 -e MASK_RCNN_CACHE_DIR=/lab/data/celldom/model/pretrained \
 celldom-dev
-```
-
-#### Production Container Instructions
-
-```
-cd $REPOS/celldom/docker
-
-nvidia-docker build -t celldom -f Dockerfile.prd .
-
-export CELLDOM_DATA_DIR=/data/disk2/celldom
-export CELLDOM_REPO_DIR=$HOME/repos/celldom
-
-nvidia-docker run --rm -ti -p 8888:8888 -p 6006:6006 \
--v $CELLDOM_DATA_DIR:/lab/data/celldom \
--v $CELLDOM_REPO_DIR:/lab/repos/celldom \
-celldom
 ```

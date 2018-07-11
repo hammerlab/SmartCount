@@ -10,7 +10,11 @@ RUN mkdir -p $LAB_DIR $REPO_DIR $DATA_DIR
 
 RUN apt-get update && apt-get install -y --no-install-recommends git vim
 
-RUN pip install jupyterlab matplotlib scikit-image keras pandas plotnine Cython papermill
+# Install these specific package versions to avoid their annoying breaking changes
+RUN pip install keras==2.1.6
+RUN pip install scikit-image==0.14.0
+
+RUN pip install jupyterlab matplotlib pandas plotnine Cython papermill tables retrying fire moviepy
 
 # Opencv installation
 RUN apt-get install -y libsm6 libxext6 libfontconfig1 libxrender1
@@ -38,4 +42,14 @@ ENV MASK_RCNN_DIR $REPO_DIR/Mask_RCNN
 ENV LAB_ROOT_DIR $LAB_DIR
 ENV SHELL /bin/bash
 
+# Eliminate globally these warnings: FutureWarning: Conversion of the second argument of issubdtype from
+# `float` to `np.floating` is deprecated. In future, it will be treated as `np.float64 == np.dtype(float).type`
+# See here for discussion: https://github.com/h5py/h5py/issues/961
+ENV PYTHONWARNINGS "ignore::FutureWarning:h5py"
+
 WORKDIR "$LAB_DIR"
+
+# Create link to celldom CLI executable on launch since it comes from local repo
+CMD chmod a+x $CELLDOM_REPO_DIR/python/source/celldom/cli/celldom_cli.py && \
+    ln -s $CELLDOM_REPO_DIR/python/source/celldom/cli/celldom_cli.py /usr/local/bin/celldom && \
+    jupyter lab --allow-root
