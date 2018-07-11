@@ -1,0 +1,7 @@
+filename,file_size,file_attributes,region_count,region_id,region_shape_attributes,region_attributes
+https://drive.google.com/uc?export=download&id=1SekcSXEfrQCYmMb7F8LenABEwjWKnWQP,-1,"{}",6,0,"{""name"":""rect"",""x"":6,""y"":3,""width"":362,""height"":455}","{""type"":""chip_border""}"
+https://drive.google.com/uc?export=download&id=1SekcSXEfrQCYmMb7F8LenABEwjWKnWQP,-1,"{}",6,1,"{""name"":""rect"",""x"":261,""y"":62,""width"":104,""height"":58}","{""type"":""apt_num_border""}"
+https://drive.google.com/uc?export=download&id=1SekcSXEfrQCYmMb7F8LenABEwjWKnWQP,-1,"{}",6,2,"{""name"":""rect"",""x"":21,""y"":328,""width"":107,""height"":61}","{""type"":""st_num_border""}"
+https://drive.google.com/uc?export=download&id=1SekcSXEfrQCYmMb7F8LenABEwjWKnWQP,-1,"{}",6,3,"{""name"":""rect"",""x"":296,""y"":71,""width"":31,""height"":42}","{""type"":""apt_num_center_digit""}"
+https://drive.google.com/uc?export=download&id=1SekcSXEfrQCYmMb7F8LenABEwjWKnWQP,-1,"{}",6,4,"{""name"":""rect"",""x"":61,""y"":336,""width"":32,""height"":45}","{""type"":""st_num_center_digit""}"
+https://drive.google.com/uc?export=download&id=1SekcSXEfrQCYmMb7F8LenABEwjWKnWQP,-1,"{}",6,5,"{""name"":""point"",""cx"":256,""cy"":393}","{""type"":""marker_center""}"
