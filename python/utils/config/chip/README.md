@@ -21,6 +21,10 @@ Each of these properties can be specified manually but the simplest way to creat
 2. Go to ```Annotation -> Import Annotations (from csv)``` and select the [annotations/chip_01.csv](annotations/chip_01.csv)
  file in this directory
     - This will load an image from a remote URL and show what it's annotations should look like for a chip
+    - You should then see something like this:
+   
+![Screenshot](https://drive.google.com/uc?export=download&id=1djr3Wx0nQCWFbzGwZV_436rP59S1Ek8u)
+    
 3. Set the property  ```Update Project Settings (cog wheel in menu bar) -> Region Label``` to ```Value of Region
 Attribute: type```; After doing this, the annotated regions should now have labels that make it more
 clear what they are.
@@ -29,6 +33,10 @@ exactly the same attributes (there is only one attribute called "type" and each 
 new chip).
     - **IMPORTANT**: All annotations should be bounding boxes except for the **marker_center**,
     which should be a point annotation
+    - Here is a list of all the different chip components that must be annotated (you can view these via ```View -> Toggle annotation editor```:
+    
+    ![Attrs](https://drive.google.com/uc?export=download&id=1zrBSiqE30n2jvkYs2vXIr8KYrTGcecmc)
+    
 5. Export the annotations as a csv file in the [annotations](annotations) folder in this same directory
 6. Run the ```chip_config_generator.py``` script to convert the annotations to a chip config.
     - To be able to run this, you will need to either download and install Anaconda
