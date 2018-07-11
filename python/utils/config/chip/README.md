@@ -3,7 +3,7 @@
 These configurations are necessary in order for the system to know where important components of a
 chip are relative to the marker.
 
-For example, in [chip_01.yaml](chip_01.yaml) there is a section like this:
+For example, in [chip_01.yaml](https://github.com/hammerlab/celldom/blob/39ab8d8c06dbdec67c9f1c7c19769882452d071e/config/chip/chip_01.yaml) there is a section like this:
 
 ```
 apt_margins:
