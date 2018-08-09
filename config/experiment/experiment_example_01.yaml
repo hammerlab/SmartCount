@@ -1,6 +1,9 @@
 name: Test Experiment 1
 chip: {name: chip_01}
 cytometer: {name: cytometer_01}
+acquisition:
+  magnification: 10
+  reflection: true
 metadata:
   # Example file path: 2018.05.31.1610 MOLM13 NoDrug 1Mperml Chip2/BF_ST_000_APT_000_zm3.tif
   fields:

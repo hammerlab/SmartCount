@@ -1,0 +1,24 @@
+apt_margins: {bottom: 68, left: -192, right: 43, top: -156}
+apt_num_digit_bounds:
+- [0, 27]
+- [21, 50]
+apt_num_digit_count: 2
+apt_num_margins: {bottom: -87, left: -10, right: 40, top: -133}
+components:
+  chamber:
+  - [53, 11]
+  - [182, 11]
+  - [182, 187]
+  - [53, 187]
+  trap:
+  - [84, 187]
+  - [152, 187]
+  - [152, 223]
+  - [84, 223]
+name: chip_G3
+st_num_digit_bounds:
+- [0, 27]
+- [21, 50]
+st_num_digit_count: 2
+st_num_margins: {bottom: 8, left: -188, right: -138, top: -34}
+target_scale_factor: 254.16

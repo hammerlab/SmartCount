@@ -2,11 +2,11 @@ from celldom.constant import CLASS_NAME_CELL
 from celldom.config.cell_config import CLASS_INDEX_CELL
 from celldom.extract import NO_IMAGES
 from celldom.utils import assert_rgb, rgb2gray
-from skimage.measure import regionprops
+from skimage.measure import regionprops, points_in_poly
 import numpy as np
 
 
-def extract(img, cell_model, chip_config, dpf=NO_IMAGES):
+def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True):
 
     # Validate image input
     assert_rgb(img)
@@ -56,12 +56,11 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES):
         if len(props) == 0:
             continue
 
-        # TODO: Use chip config to add further classifications on location of cell (or
-        # possibly, use masks for inferred locations of chip components)
-        # e.g. in chamber, in trap, in channel based on centroid
-
         props = props[0]
+
+        # Centroid is (y, x) tuple
         centroid = props.centroid
+
         cells.append(dict(
             cell_image=props.intensity_image if dpf.cell_image else None,
             roi_ymin=int(cell_rois[i][0]),
@@ -75,4 +74,26 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES):
             centroid_y=centroid[0],
             centroid_x=centroid[1]
         ))
+
+    # Categorize membership of cells in chip components, if any are present
+    if 'components' in chip_config:
+        idx = []
+        for component, points in chip_config['components'].items():
+            # points_in_poly expects (x, y) tuples
+            centroids = [(c['centroid_x'], c['centroid_y']) for c in cells]
+            in_poly = points_in_poly(centroids, points)
+            assert len(in_poly) == len(cells), \
+                'Expecting {} boolean values but shape {}'.format(len(cells), in_poly.shape)
+
+            # Add membership flags as booleans to each cell dict
+            for i in range(len(cells)):
+                cells[i]['in_' + component] = in_poly[i]
+                if in_poly[i]:
+                    idx.append(i)
+
+        # If configured to do so, filter cells to only those within at least one component
+        if in_components_only:
+            # Remove using sorted, de-duplicated index list
+            cells = [cells[i] for i in sorted(list(set(idx)))]
+
     return cells

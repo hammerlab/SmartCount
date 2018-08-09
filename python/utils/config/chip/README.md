@@ -23,7 +23,7 @@ Each of these properties can be specified manually but the simplest way to creat
     - This will load an image from a remote URL and show what it's annotations should look like for a chip
     - You should then see something like this:
    
-![Screenshot](https://drive.google.com/uc?export=download&id=1djr3Wx0nQCWFbzGwZV_436rP59S1Ek8u)
+![Screenshot](https://drive.google.com/uc?export=download&id=17xYyCNRA3uKBJK-6xSjUsQuQGmTAA22u)
     
 3. Set the property  ```Update Project Settings (cog wheel in menu bar) -> Region Label``` to ```Value of Region
 Attribute: type```; After doing this, the annotated regions should now have labels that make it more
@@ -35,22 +35,23 @@ new chip).
     which should be a point annotation
     - Here is a list of all the different chip components that must be annotated (you can view these via ```View -> Toggle annotation editor```:
     
-    ![Attrs](https://drive.google.com/uc?export=download&id=1zrBSiqE30n2jvkYs2vXIr8KYrTGcecmc)
+    ![Attrs](https://drive.google.com/uc?export=download&id=17jGAxCrw9iNX7CXgcD2shBXp1vWkGOqg)
     
 5. Export the annotations as a csv file in the [annotations](annotations) folder in this same directory
 6. Run the ```chip_config_generator.py``` script to convert the annotations to a chip config.
-    - To be able to run this, you will need to either download and install Anaconda
-        ([Anaconda Download](https://www.anaconda.com/download/#macos)) or run the following in a root python
-          environment (not recommended):
+    - To be able to run this, there are two options:
+        1. Run this in the provided docker container via a terminal in JupyterLab (recommended)
+        2. Run this on a local machine, after downloading and installing Anaconda
+        ([Anaconda Download](https://www.anaconda.com/download/#macos)) and doing the following:
 
-    ```
-    > conda create -n celldom python=3.6  # If using anaconda
-    > source activate celldom             # If using anaconda
-    > echo "$CELLDOM_REPO_DIR/python/source" > $(python -m site --user-site)/local.pth # Add celldom code to pypath
-    > pip install fire pyyaml pandas numpy   # Install necessary packages
-    ```
+        ```
+        > conda create -n celldom python=3.6  # If using anaconda
+        > source activate celldom             # If using anaconda
+        > echo "$CELLDOM_REPO_DIR/python/source" > $(python -m site --user-site)/local.pth # Add celldom code to pypath
+        > pip install fire pyyaml pandas numpy   # Install necessary packages
+        ```
 
-    - Example execution:
+    - Next, the script can be run like this:
 
     ```
     # This will convert the exported annotations to a .yaml file in the celldom code repo
@@ -59,4 +60,7 @@ new chip).
     --chip-name='chip_02' \  # This name is used to create a yaml file in the config/chip folder
     --save-result=True
     ```
+    
+    For more context, when running this in JupyterLab the command and output should look like this:
 
+    ![Execution Example](https://drive.google.com/uc?export=download&id=1BOk6h20PXVjYtZgPK3aC9x0KfrTCd01p)

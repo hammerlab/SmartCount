@@ -83,7 +83,8 @@ def get_readonly_datastore(data_dir):
 
 class Acquisition(object):
 
-    def __init__(self, path, properties=None):
+    def __init__(self, config, path, properties=None):
+        self.config = config
         self.path = path
         # As an instance attribute, this may be useful for bypassing property inference
         # in the future (but for now it does nothing)
@@ -91,7 +92,10 @@ class Acquisition(object):
 
     def load_image(self, dataset_class=marker_dataset.MarkerDataset):
         """Load the image associated with this acquisition while accounting for preprocessing"""
-        dataset = dataset_class()
+        dataset = dataset_class(
+            reflect_images=self.config.acquisition_reflection,
+            scale_factor=self.config.acquisition_scale_factor
+        )
         dataset.initialize([self.path])
         dataset.prepare()
         return dataset.load_image(0)
@@ -112,7 +116,6 @@ class Acquisition(object):
         keys = sorted(list(props.keys()))
         key = ':'.join([str(props[k]) for k in keys])
         return hashlib.md5(key.encode('utf-8')).hexdigest()
-
 
 
 class Cytometer(object):
@@ -184,14 +187,52 @@ class Cytometer(object):
         if not self.initialized:
             raise ValueError('Cytometer cannot be used until initialized (call `cytometer.initialize` first)')
 
+    def run(self, path, dpf=NO_IMAGES):
+        """Run cytometry analysis on a single image
+
+        Args:
+            path: Path of image on filesystem
+            dpf: "Data Persistence Flags" indicating how more expensive objects like images are handled; see
+                celldom.extract for preset groupings of flags that can be used here -- for example:
+                ```
+                cytometer = cytometry.Cytometer(experiment_config, output_dir)
+                cytometry.analyze(image_path, dpf=extract.NO_IMAGES)
+                ```
+        Returns:
+            (acquisition_data, apartment_data, cell_data) where each is a dataframe containing:
+                - acquisition_data: Information about the original acquisition image (like rotation, marker locations)
+                - apartment_data: Apartment data like cell count, the extracted apartment image, etc.
+                - cell_data: Sizes, locations, and images of individual cells with fields linking cells back to
+                    apartments
+        """
+        return self.analyze(Acquisition(self.config, path), dpf=dpf)
+
     def analyze(self, acquisition, dpf=NO_IMAGES):
+        """Run cytometry analysis on a single acquisition
+
+        Args:
+            acquisition: Acquisition object
+            dpf: "Data Persistence Flags" indicating how more expensive objects like images are handled; see
+                celldom.extract for preset groupings of flags that can be used here -- for example:
+                ```
+                cytometer = cytometry.Cytometer(experiment_config, output_dir)
+                acquisition = cytometry.Acquisition(experiment_config, image_path)
+                cytometry.analyze(acquisition, dpf=extract.NO_IMAGES)
+                ```
+        Returns:
+            (acquisition_data, apartment_data, cell_data) where each is a dataframe containing:
+                - acquisition_data: Information about the original acquisition image (like rotation, marker locations)
+                - apartment_data: Apartment data like cell count, the extracted apartment image, etc.
+                - cell_data: Sizes, locations, and images of individual cells with fields linking cells back to
+                    apartments
+        """
         self._check_initialized()
 
         # Prepare single image dataset
         # Note that while this may seem unnecessary for loading images, it used here because
         # the "*Dataset" implementations often include image specific pre-processing that should
-        # be applied -- and in this case that means reflection and uint8 conversion)
-        image = acquisition.load_image(marker_dataset.MarkerDataset)
+        # be applied -- and in this case that potentially means reflection, uint8 conversion, and resizing)
+        image = acquisition.load_image()
 
         # At this point, the image should always be 8-bit RGB
         assert_rgb(image)
