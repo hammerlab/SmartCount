@@ -4,7 +4,8 @@ import numpy as np
 
 
 def prep_digit_image(img):
-    # Note that resize will take care of converting from uint8 to float in 0-1
+    # Note that resize will take care of converting from uint8 to float in 0-1, and that at TOW
+    # digit classifier always expects 32 x 32 images
     assert img.dtype == np.uint8, 'Expected image of type uint8 but got {}'.format(img.dtype)
     img = gray2rgb(resize(img, (32, 32), mode='constant', anti_aliasing=True)).astype(np.float32)
     assert np.all(img <= 1.) and np.all(img >= 0.)

@@ -15,7 +15,9 @@ COLOR_GREEN = [0, 255, 0]
 COLOR_BLUE = [0, 0, 255]
 
 
-def generate_apartment_videos(exp_config, files, output_dir, cell_marker_color=COLOR_RED, video_type='gif', fps=1):
+def generate_apartment_videos(
+        exp_config, files, output_dir,
+        cell_marker_color=COLOR_RED, video_type='gif', fps=1):
     """Generate annotated videos of individual apartments at best focus level
 
     Args:
@@ -68,7 +70,7 @@ def process_results(apt_data, cell_data, cell_marker_color):
         .reset_index().set_index(keys)
 
     # Limit cell data to only that which pertains to the above apartments
-    cell_data = cell_data.set_index(keys).loc[apt_data.index]
+    cell_data = cell_data.set_index(keys).loc[apt_data.index].sort_index()
 
     df = []
     for i, r in apt_data.iterrows():

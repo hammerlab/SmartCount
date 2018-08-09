@@ -38,6 +38,32 @@ class ExperimentConfig(object):
     def path_field_names(self):
         return re.findall(r"{(\w+)}", self._path_format)
 
+    @property
+    def acquisition_magnification(self):
+        return self.conf['acquisition']['magnification']
+
+    @property
+    def acquisition_scale_factor(self):
+        mag = self.acquisition_magnification
+        res = None
+
+        # At TOW, all models were built using 10x images so this function will assume
+        # that anything not at 10x should be resized (assuming original magnification
+        # isn't too far from 10x)
+        if mag != 10:
+            if mag < 8 or mag > 20:
+                raise ValueError(
+                    'Experiment magnification given, {}, is invalid as it is not in [8, 20] ('
+                    'this is because downsampling/upsampling is unlikely to be representative of '
+                    'the 10x images originally used to train learning models)'.format(mag)
+                )
+            res = 10. / mag
+        return res
+
+    @property
+    def acquisition_reflection(self):
+        return self.conf['acquisition']['reflection']
+
     def _get_config(self, typ):
         if typ not in self.conf:
             raise ValueError('Experiment configuration does not have required property "{}"'.format(typ))
@@ -80,6 +106,12 @@ class ExperimentConfig(object):
                 'Field names configured = {}'
                 .format(self._path_format, path_field_names, conf_field_names)
             )
+
+        if 'acquisition' not in self.conf:
+            raise ValueError('Experiment configuration must contain "acqusition" properties')
+        for p in ['magnification', 'reflection']:
+            if p not in self.conf['acquisition']:
+                raise ValueError('Experiment configuration must contain "acquisition.{}" property'.format(p))
 
     def parse_path(self, path):
 

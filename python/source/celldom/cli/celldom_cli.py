@@ -66,14 +66,15 @@ class Celldom(object):
         if sample_count is not None:
             if sample_count < 1:
                 raise ValueError('Sample count must be >= 1 (not {})'.format(sample_count))
-            logger.info('Randomly selecting %s files to process', sample_count)
-            files = pd.Series(files).sample(n=sample_count, random_state=celldom.seed)
-        elif sample_rate  is not None:
+            logger.info('Randomly selecting (at most) %s files to process', sample_count)
+            n = min(len(files), sample_count)
+            files = pd.Series(files).sample(n=n, random_state=celldom.seed)
+        elif sample_rate is not None:
             if sample_rate <= 0 or sample_rate > 1:
                 raise ValueError('Sample rate must in (0, 1] (not {})'.format(sample_rate))
             logger.info('Sampling raw files using given rate %s', sample_rate)
             files = pd.Series(files).sample(frac=sample_rate, random_state=celldom.seed)
-        logger.info('Number of raw data files after sample: %s', len(files))
+        logger.info('Number of raw data files after sampling: %s', len(files))
 
         logger.info('Loading experiment configuration from path: %s', experiment_config_path)
         exp_config = experiment_config.ExperimentConfig(celldom.read_config(experiment_config_path))

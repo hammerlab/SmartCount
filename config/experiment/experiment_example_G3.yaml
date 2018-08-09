@@ -1,0 +1,18 @@
+name: G3 Test Experiment
+chip: {name: chip_G3}
+cytometer: {name: cytometer_01}
+acquisition:
+  magnification: 16
+  reflection: false
+metadata:
+  # Example file path: 20180614Orange1_0_1uM000hr/BFF_16X_St_000_Apt_006_201806142350.tif
+  fields:
+    datetime:
+      regex: '[0-9]{12}'
+      format: '%Y%m%d%H%M'
+    condition: '[0-9]{1}'
+    street: '[0-9]{3}'
+    cohort: '[a-zA-Z0-9_]{5}'
+    apartment: '[0-9]{3}'
+    hours: '[0-9]{3}'
+  path_format: '.*Orange{condition}_{cohort}{hours}hr/BFF_16X_St_{street}_Apt_{apartment}_{datetime}.tif'

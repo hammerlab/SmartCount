@@ -60,7 +60,7 @@ class CLI(object):
 
         if annot['reg_type'].value_counts().max() > 1:
             raise ValueError(
-                'Can only have one annotation per type, but given csv has multiple; Counts = \n{}'
+                'There can only be one annotation per type, but given csv has multiple; Counts = \n{}'
                 .format(annot['reg_type'].value_counts())
             )
 
@@ -75,18 +75,28 @@ class CLI(object):
                 )
 
         # Validate presence of necessary annotated classes
-        req_types = [
-            'chip_border', 'apt_num_border', 'st_num_border',
-            'st_num_center_digit', 'apt_num_center_digit',
-            'marker_center'
-        ]
-        for t in req_types:
+        for t in ['chip_border', 'marker_center']:
             if t not in shapes:
                 raise ValueError(
                     'Failed to find required annotation type "{}" in csv {}'
                     .format(t, annotation_csv)
                 )
             assert_type(t, 'rect' if t != 'marker_center' else 'point')
+
+        #############################################
+        # Extract and validate st/apt num annotations
+        #############################################
+
+        # Sort type names like 'st_num_1', 'st_num_2', etc.
+        apt_num_types = sorted([v for v in shapes.keys() if v.startswith('apt_num_')])
+        st_num_types = sorted([v for v in shapes.keys() if v.startswith('st_num_')])
+        if not apt_num_types:
+            raise ValueError('At least one annotation with the type "apt_num_[INDEX]" must be given')
+        if not st_num_types:
+            raise ValueError('At least one annotation with the type "st_num_[INDEX]" must be given')
+        apt_num_bbox = [shapes[t] for t in apt_num_types]
+        st_num_bbox = [shapes[t] for t in st_num_types]
+
 
         ##########################################
         # Create bbox margins for entire apartment
@@ -107,35 +117,83 @@ class CLI(object):
         ###################################
         # Create offsets for st/apt numbers
         ###################################
-        def get_margins(mc, bbox):
+
+        def get_digit_bbox(shapes):
+            # Assume digit shapes are ordered left to right
+            # Note: via annotations set y as increasing downward
             return dict(
-                left=bbox['x'] - mc['cx'],
-                right=(bbox['x'] + bbox['width']) - mc['cx'],
-                bottom=(bbox['y'] + bbox['height']) - mc['cy'],
-                top=bbox['y'] - mc['cy']
+                left=shapes[0]['x'],
+                right=shapes[-1]['x'] + shapes[-1]['width'],
+                top=min([s['y'] for s in shapes]),
+                bottom=max([s['y'] + s['height'] for s in shapes])
             )
 
-        # shapes['apt_num_border']: {'name': 'rect', 'x': 261, 'y': 62, 'width': 104, 'height': 58}
-        temp_config['apt_num_margins'] = get_margins(mc, shapes['apt_num_border'])
+        def make_relative(mc, bbox):
+            return dict(
+                left=bbox['left'] - mc['cx'],
+                right=bbox['right'] - mc['cx'],
+                bottom=bbox['bottom'] - mc['cy'],
+                top=bbox['top'] - mc['cy']
+            )
 
-        # shapes['st_num_border']: {'name': 'rect', 'x': 21, 'y': 328, 'width': 107, 'height': 61}
-        temp_config['st_num_margins'] = get_margins(mc, shapes['st_num_border'])
+        # shapes['apt_num_1']: "{""name"":""rect"",""x"":437,""y"":75,""width"":51,""height"":92}"
+        apt_border_bbox = get_digit_bbox(apt_num_bbox)
+        temp_config['apt_num_margins'] = make_relative(mc, apt_border_bbox)
+
+        # shapes['st_num_1']: "{""name"":""rect"",""x"":43,""y"":283,""width"":53,""height"":91}"
+        st_border_bbox = get_digit_bbox(st_num_bbox)
+        temp_config['st_num_margins'] = make_relative(mc, st_border_bbox)
 
         #################################
         # Create individual digit offsets
         #################################
-        def get_digit_bounds(bbout, bbin, pad=DIGIT_PAD):
-            w = bbin['width']
-            c1 = bbin['x'] - bbout['x']
-            c2 = c1 + w
-            return [
-                [max(c1 - w - pad, 0), c1 + pad],
-                [c1 - pad, c1 + w + pad],
-                [c2 - pad, min(c2 + w + pad, bbout['width'])]
-            ]
+        def get_digit_bounds(bb_border, bb_digits, pad=DIGIT_PAD):
+            ranges = []
+            width = bb_border['right'] - bb_border['left']
+            for b in bb_digits:
+                left = b['x'] - bb_border['left']
+                right = left + b['width']
+                ranges.append([max(left - pad, 0), min(right + pad, width)])
+            return ranges
 
-        temp_config['apt_num_digit_bounds'] = get_digit_bounds(shapes['apt_num_border'], shapes['apt_num_center_digit'])
-        temp_config['st_num_digit_bounds'] = get_digit_bounds(shapes['st_num_border'], shapes['st_num_center_digit'])
+        # Set left/right range for each digit as 0-based offset from left of outside border
+        temp_config['apt_num_digit_bounds'] = get_digit_bounds(apt_border_bbox, apt_num_bbox)
+        temp_config['st_num_digit_bounds'] = get_digit_bounds(st_border_bbox, st_num_bbox)
+
+        # Set digit counts
+        temp_config['apt_num_digit_count'] = len(apt_num_bbox)
+        temp_config['st_num_digit_count'] = len(st_num_bbox)
+
+        ##########################
+        # Create component offsets
+        ##########################
+
+        for k, v in {k: v for k, v in shapes.items() if k.startswith('component_')}.items():
+            comp_name = '_'.join(k.split('_')[1:])
+            if v['name'] not in ['rect', 'polygon']:
+                raise ValueError(
+                    'Component "{}" has annotation type "{}" but only rectangular '
+                    'and polygon annotations are supported'.format(k, v['name'])
+                )
+            if 'components' not in temp_config:
+                temp_config['components'] = {}
+
+            if v['name'] == 'rect':
+                points = [
+                    # Specify points clockwise
+                    [v['x'], v['y']],
+                    [v['x'] + v['width'], v['y']],
+                    [v['x'] + v['width'], v['y'] + v['height']],
+                    [v['x'], v['y'] + v['height']]
+                ]
+            else:
+                points = list(zip(v['all_points_x'], v['all_points_y']))
+
+            # Make all points relative to the chip border so that they can be used
+            # as direct references for containment within an extracted chip image
+            points = [[p[0] - cb['x'], p[1] - cb['y']] for p in points]
+
+            temp_config['components'][comp_name] = points
 
         #######################
         # Save or print results

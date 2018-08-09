@@ -25,9 +25,10 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
         n_fail = 0
         for i, f in tqdm.tqdm(enumerate(files), total=len(files)):
             try:
-                # Specify an "Acquisition", which only exists to also make it possible
-                # to associate custom metadata with records
-                acq = cytometry.Acquisition(f)
+                # Specify an "Acquisition", which exists to also make it possible
+                # to associate custom metadata with records as well as standardize
+                # image pre-processing
+                acq = cytometry.Acquisition(exp_config, f)
 
                 # Analyze the image
                 result = cytometer.analyze(acq, dpf=dpf)
