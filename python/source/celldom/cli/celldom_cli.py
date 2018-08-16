@@ -37,7 +37,7 @@ class Celldom(object):
 
     def run_processor(
             self, experiment_config_path, data_file_patterns, output_dir,
-            sample_rate=None, sample_count=None):
+            sample_rate=None, sample_count=None, max_failures=10):
         """Run cell counting/cytometry for a given experiment configuration and set of raw data files
 
         Args:
@@ -49,6 +49,8 @@ class Celldom(object):
             output_dir: Directory in which results will be stored
             sample_rate: Float in (0, 1] indicating a fractional sampling rate of raw files to use
             sample_count: Fixed number of raw files to limit processing to
+            max_failures: Maximum number of allowable image processing failures before entire command fails (default
+                is 10)
         """
 
         # Get all matching files, deduplicate and sort
@@ -83,7 +85,7 @@ class Celldom(object):
             os.makedirs(output_dir, exist_ok=True)
 
         logger.info('Running data processor (output dir = %s) ...', output_dir)
-        processing.run_cytometer(exp_config, output_dir, files)
+        processing.run_cytometer(exp_config, output_dir, files, max_failures=max_failures)
         logger.info('Processing complete')
 
     def analyze_growth_rates(

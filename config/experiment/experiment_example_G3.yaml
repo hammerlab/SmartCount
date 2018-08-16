@@ -14,7 +14,7 @@ metadata:
     color: 'Orange|Red|White|Pink|Green|Blue|Yellow'
     condition: '1|3'
     hours: '[0-9]{1,3}'
-    cohort: 'Control|[0-9\.]{3,}uM'
+    cohort: 'Control|[0-9\.]{1,}uM'
     street: '[0-9]{3}'
     apartment: '[0-9]{3}'
   path_format: '.*/.*{pump}/.*/.* {color} {condition} {cohort} {hours} hr/BFF_16X_St_{street}_Apt_{apartment}_{datetime}.tif'
