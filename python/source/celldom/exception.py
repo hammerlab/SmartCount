@@ -1,0 +1,3 @@
+
+class NoMarkerException(Exception):
+    pass

@@ -25,6 +25,8 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
         n_fail = 0
         for i, f in tqdm.tqdm(enumerate(files), total=len(files)):
             try:
+                logger.debug('Processing file "%s"', f)
+
                 # Specify an "Acquisition", which exists to also make it possible
                 # to associate custom metadata with records as well as standardize
                 # image pre-processing
@@ -38,13 +40,12 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
 
                 # Save the results
                 cytometer.save(*result)
-            except Exception as e:
-                n_fail += 1
-                logger.error(
+            except Exception:
+                logger.exception(
                     'A failure occurred processing file %s (failure threshold = %s, current failure count = %s)',
                     f, max_failures, n_fail
                 )
-                logger.error('Error: %s', e)
+                n_fail += 1
             if n_fail >= max_failures:
                 logger.error('Threshold for max number of failures exceeded; skipping any further processing')
                 break
