@@ -63,10 +63,10 @@ def _initialize_data_dir(data_dir):
 
 class HDF5Datastore(Datastore):
 
-    def __init__(self, data_dir, data_mode):
+    def __init__(self, data_dir, data_mode, data_file='data.h5'):
         """Datastore implementation based on local HDF5 files"""
         self.data_dir = _initialize_data_dir(data_dir)
-        self.data_file = osp.join(self.data_dir, 'data.h5')
+        self.data_file = osp.join(self.data_dir, data_file)
         self.store = pd.HDFStore(self.data_file, mode=data_mode)
 
     def close(self):
@@ -77,8 +77,8 @@ class HDF5Datastore(Datastore):
             self.store.append(key, df, **kwargs)
 
 
-def get_readonly_datastore(data_dir):
-    return HDF5Datastore(data_dir, 'r').store
+def get_readonly_datastore(data_dir, data_file='data.h5'):
+    return HDF5Datastore(data_dir, 'r', data_file).store
 
 
 class Acquisition(object):

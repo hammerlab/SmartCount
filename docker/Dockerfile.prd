@@ -35,7 +35,17 @@ RUN cd $REPO_DIR && git clone https://github.com/hammerlab/cvutils.git
 # Add any source directories for development to python search path
 RUN mkdir -p $(python -m site --user-site) && \
     echo "$CELLDOM_REPO_DIR/python/source" > $(python -m site --user-site)/local.pth && \
+    echo "$CELLDOM_REPO_DIR/python/application" >> $(python -m site --user-site)/local.pth && \
     echo "$CVUTILS_REPO_DIR/python" >> $(python -m site --user-site)/local.pth
+
+# Install Dash and per their instructions, reference specific verions
+# See: https://dash.plot.ly/getting-started
+RUN pip install dash==0.21.1  \
+    dash-renderer==0.13.0 \
+    dash-html-components==0.11.0 \
+    dash-core-components==0.23.0 \
+    dash-table-experiments==0.6.0 \
+    plotly
 
 # Set useful development environment variables (override on run if necessary)
 ENV CELLDOM_REPO_DIR $CELLDOM_REPO_DIR

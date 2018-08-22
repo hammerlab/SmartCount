@@ -6,11 +6,13 @@ import numpy as np
 import pandas as pd
 import celldom
 import glob
+import signal
+import faulthandler
 from celldom.execute import processing
 from celldom.config import experiment_config
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=os.getenv('LOGLEVEL', 'INFO'))
 logger = logging.getLogger('cli')
 os.environ['TF_CPP_MIN_LOG_LEVEL']='3'
 
@@ -121,4 +123,6 @@ class Celldom(object):
 
 
 if __name__ == '__main__':
+    # Register debugging handler
+    faulthandler.register(signal.SIGUSR1)
     fire.Fire(Celldom)

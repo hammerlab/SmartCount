@@ -64,6 +64,9 @@ class ExperimentConfig(object):
     def acquisition_reflection(self):
         return self.conf['acquisition']['reflection']
 
+    def get_application_config(self, application_name):
+        return self.conf.get('application', {}).get(application_name, {})
+
     def _get_config(self, typ):
         if typ not in self.conf:
             raise ValueError('Experiment configuration does not have required property "{}"'.format(typ))
