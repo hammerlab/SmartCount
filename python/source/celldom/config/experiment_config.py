@@ -26,6 +26,10 @@ class ExperimentConfig(object):
         return self.conf['metadata']['fields']['datetime']
 
     @property
+    def name(self):
+        return self.conf['name']
+
+    @property
     def field_regex(self):
         return {k: v if isinstance(v, str) else v['regex'] for k, v in self._fields.items()}
 
@@ -64,8 +68,20 @@ class ExperimentConfig(object):
     def acquisition_reflection(self):
         return self.conf['acquisition']['reflection']
 
-    def get_application_config(self, application_name):
-        return self.conf.get('application', {}).get(application_name, {})
+    @property
+    def groupings(self):
+        return self.conf.get('groupings', {})
+
+    @property
+    def experimental_condition_fields(self):
+        if 'groupings' not in self.conf:
+            raise ValueError('Experiment configuration does not have required property "groupings"')
+        if 'experimental_conditions' not in self.conf['groupings']:
+            raise ValueError(
+                '"groupings" object in experiment configuration does not have '
+                'required property "experimental_conditions"'
+            )
+        return ['acq_' + c for c in self.conf['groupings']['experimental_conditions']]
 
     def _get_config(self, typ):
         if typ not in self.conf:
