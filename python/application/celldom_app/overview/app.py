@@ -77,7 +77,7 @@ def get_page_apartments():
     df = data.get_growth_data()
 
     fields = data.get_apartment_key_fields() + [
-        'growth_rate', 'min_cell_count', 'max_cell_count', 'first_date', 'n'
+        'growth_rate', 'min_cell_count', 'max_cell_count', 'first_count', 'first_date', 'elapsed_hours_min', 'n'
     ]
     # TODO: Apply filters on first_count and elapsed_hours_min
     return [

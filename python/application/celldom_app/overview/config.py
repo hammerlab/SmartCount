@@ -7,10 +7,12 @@ CONFIG = None
 ENV_APP_PORT = 'APP_PORT'
 ENV_APP_HOST_IP = 'APP_HOST_IP'
 ENV_APP_APT_IMG_HEIGHT_PX = 'APP_APT_IMG_HEIGHT_PX'
+ENV_APP_APT_IMG_TMPDIR = 'APP_APT_IMG_TMPDIR'
 
 DEFAULT_APP_HOST_IP = '0.0.0.0'
 DEFAULT_APP_PORT = 6006
 DEFAULT_APP_APT_IMG_HEIGHT_PX = '350'
+DEFAULT_APP_APT_IMG_TMPDIR = '/tmp/apartment_image_output'
 
 
 class AppConfig(object):
@@ -50,6 +52,10 @@ class AppConfig(object):
     @property
     def max_table_rows(self):
         return 8
+
+    @property
+    def apt_img_tmpdir(self):
+        return os.getenv(ENV_APP_APT_IMG_TMPDIR, DEFAULT_APP_APT_IMG_TMPDIR)
 
 
 def initialize(exp_config_path):

@@ -117,7 +117,7 @@ def _get_apartment_image_data(df):
     files = list(set(files))
 
     logger.info('Generating apartment images for %s raw image files ...', len(files))
-    output_dir = '/tmp/apartment_image_output'
+    output_dir = cfg.apt_img_tmpdir
     image_data = visualization.get_apartment_image_data(cfg.exp_config, files, output_dir)
     logger.info('Apartment image generation complete')
 
