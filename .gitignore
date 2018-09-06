@@ -2,6 +2,7 @@
 logs/
 legacy/notebooks/models/
 legacy/notebooks/exports/
+wandb/
 
 *.DS_Store
 .idea

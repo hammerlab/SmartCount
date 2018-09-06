@@ -40,7 +40,7 @@ def _resolve_paths(config):
         # If it is a url, download it if not already cached
         elif location_type == 'url':
             url = location['location']
-            cache_path = osp.join('models', celldom.get_version(), osp.basename(url))
+            cache_path = osp.join('models', osp.basename(url))
             model_paths[model_name] = celldom_io.cache(url, cache_path)
         else:
             raise ValueError('Model location type "{}" not valid (should be "file" or "url")'.format(location_type))
@@ -120,12 +120,13 @@ class Acquisition(object):
 
 class Cytometer(object):
 
-    def __init__(self, config, data_dir, data_mode='w'):
+    def __init__(self, config, data_dir, data_mode='w', enable_focus_scores=True):
         self.config = config
         self.model_paths = _resolve_paths(config.get_cytometer_config())
         self.chip_config = config.get_chip_config()
         self.data_dir = data_dir
         self.data_mode = data_mode
+        self.enable_focus_scores = enable_focus_scores
 
         self.datastore = None
         self.initialized = False
@@ -162,7 +163,8 @@ class Cytometer(object):
             'inference', cell_config.CellInferenceConfig(), tempfile.mkdtemp(),
             init_with='file', file=self.model_paths['cell']
         )
-        self.focus_model = miq.get_classifier(tf_conf)
+        if self.enable_focus_scores:
+            self.focus_model = miq.get_classifier(tf_conf)
         self.initialized = True
         return self
 
@@ -242,10 +244,9 @@ class Cytometer(object):
         properties['processed_at'] = pd.to_datetime('now')
 
         # Extract all relevant information
-        partitions, norm_image, norm_centers, neighbors, rotation, scale = apartment_extraction.extract(
+        partitions, norm_image, norm_centers, neighbors, rotation = apartment_extraction.extract(
             image, self.marker_model, self.chip_config,
-            digit_model=self.digit_model, cell_model=self.cell_model, focus_model=self.focus_model,
-            chip_scaling=False, dpf=dpf
+            digit_model=self.digit_model, cell_model=self.cell_model, focus_model=self.focus_model, dpf=dpf
         )
 
         acq_data = pd.DataFrame([dict(
@@ -254,8 +255,7 @@ class Cytometer(object):
             raw_image_shape_width=image.shape[1],
             raw_norm_image=norm_image if dpf.raw_norm_image else None,
             apt_count=len(partitions),
-            rotation=rotation,
-            scale=scale
+            rotation=rotation
         )])
 
         # Extract a data frame with rows representing each cell

@@ -2,6 +2,7 @@ from skimage import morphology
 from skimage import transform
 from skimage import filters
 from skimage import draw
+from celldom.config import marker_config
 import pandas as pd
 import numpy as np
 
@@ -36,48 +37,12 @@ def get_marker_centers(img, rois):
     if rois.shape[1] != 4 or rois.ndim != 2:
         raise ValueError('Expecting rois to be 2D with 4 columns (given shape = {})'.format(rois.shape))
 
-    n_roi = rois.shape[0]
-    centroids = []
-    for i in range(n_roi):
-        y1, x1, y2, x2 = rois[i]
-
-        # Extract marker from image
-        marker_img = img[y1:y2, x1:x2]
-
-        # Normalize and clean the raw marker image
-        marker_img = prep_marker_img(marker_img)
-
-        # Compute marker centroid
-        marker_center = get_weighted_centroid(marker_img)
-
-        # Convert relative centroid coordinates back to coords of image
-        centroids.append(np.array(marker_center) + np.array([y1, x1]))
+    # Given rois with cols y1, x1, y2, x2, compute average points on each axis
+    centroids = np.stack([
+        rois[:, 0] + ((rois[:, 2] - rois[:, 0]) / 2.0),
+        rois[:, 1] + ((rois[:, 3] - rois[:, 1]) / 2.0)
+    ], -1)
     return pd.DataFrame(centroids, columns=['y', 'x'])
-
-
-def prep_marker_img(img):
-    """Prepare a raw marker image by filtering and subtracting a disk around edges
-
-    More precisely, this function will median filter on a 3x3 patch to remove outliers,
-    create a disk that captures something close to a centered circle, and then set all
-    values outside of that disk to 0.
-
-    Args:
-        img: Marker image (usually close to a 15x15 square with a circular marker in middle)
-    Return:
-        Transformed marker image with same shape as input
-    """
-    img = filters.rank.median(img)
-    disk = morphology.disk(radius=np.array(img.shape).min() // 2)
-    disk = transform.resize(disk, img.shape, mode='constant', order=1)
-    return img * disk
-
-
-def get_weighted_centroid(img):
-    if np.any(img < 0):
-        raise ValueError('Image must be non-negative to use for weighted centroid calculation')
-    row, col = np.indices(img.shape[:2])
-    return np.average(row, weights=img), np.average(col, weights=img)
 
 
 def _angle_between(p1, p2):
@@ -92,9 +57,11 @@ def _angle_between(p1, p2):
     return np.rad2deg(np.arctan2(*(p2 - p1)))
 
 
-def get_marker_neighbors(centers, angle_range=(-25, 25)):
+def get_marker_neighbors(centers, angle_range=(-25, 25), distance_range=None):
     if centers.ndim != 2:
         raise ValueError('Expecting centers to be 2D array (shape given = {})'.format(centers.shape))
+    if distance_range is None:
+        distance_range = (0, np.inf)
     n_points = centers.shape[0]
 
     res = []
@@ -106,11 +73,18 @@ def get_marker_neighbors(centers, angle_range=(-25, 25)):
 
             point = centers[i]
             neighbor = centers[j]
-            angle = _angle_between(point, neighbor)
 
-            if angle_range[0] <= angle <= angle_range[1]:
+            # Compute angle between points for either ordering, ultimately looking
+            # for horizontal angle offsets between them
+            angle1 = _angle_between(point, neighbor)
+            angle2 = _angle_between(neighbor, point)
+
+            # Only add neighbors if they are within a certain angle and distance from the current point
+            if angle_range[0] <= angle1 <= angle_range[1] or \
+                    angle_range[0] <= angle2 <= angle_range[1]:
                 distance = np.linalg.norm(neighbor - point)
-                candidates.append((i, point[0], point[1], j, neighbor[0], neighbor[1], angle, distance))
+                if distance_range[0] <= distance <= distance_range[1]:
+                    candidates.append((i, point[0], point[1], j, neighbor[0], neighbor[1], angle1, distance))
 
         if not candidates:
             continue
@@ -118,9 +92,11 @@ def get_marker_neighbors(centers, angle_range=(-25, 25)):
         closest_idx = np.argsort(candidates[:, -1])[0]
         res.append(candidates[closest_idx])
 
-    return pd.DataFrame(res,
-                        columns=['point_idx', 'point_y', 'point_x', 'neighbor_idx', 'neighbor_y', 'neighbor_x', 'angle',
-                                 'distance'])
+    columns = [
+        'point_idx', 'point_y', 'point_x', 'neighbor_idx',
+        'neighbor_y', 'neighbor_x', 'angle', 'distance'
+    ]
+    return pd.DataFrame(res, columns=columns)
 
 
 def overlay_marker_centers(img, centers, color=0, radius=2):

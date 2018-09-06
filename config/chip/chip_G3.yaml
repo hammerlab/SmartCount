@@ -21,4 +21,5 @@ st_num_digit_bounds:
 - [21, 50]
 st_num_digit_count: 2
 st_num_margins: {bottom: 8, left: -188, right: -138, top: -34}
-target_scale_factor: 254.16
+# Pixel distance at 10x (have to downsample 16x images first before measuring)
+marker_spacing: {horizontal: 260, vertical: 198}

@@ -9,7 +9,7 @@ def get_growth_rate(time, value, e=1):
             .format(time.shape, value.shape)
         )
     if np.any(value < 0):
-        raise ValueError('All values must be >= 0 (values given = {})'.format(values))
+        raise ValueError('All values must be >= 0 (values given = {})'.format(value))
 
     n = len(time)
     if n < 2:
