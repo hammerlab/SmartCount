@@ -4,6 +4,7 @@ from skimage import transform
 from skimage.exposure import rescale_intensity
 from celldom.extract import marker_extraction, digit_extraction, cell_extraction
 from celldom.extract import NO_IMAGES
+from celldom.exception import NoMarkerException
 from celldom.utils import assert_rgb, rgb2gray
 
 
@@ -127,6 +128,8 @@ def extract(
 
     # Determine center points of markers
     centers = marker_extraction.extract(image, marker_model)
+    if len(centers) == 0:
+        raise NoMarkerException('No markers found in image')
 
     # Determine marker neighbors based on an angular offset threshold and proximity
     neighbors = marker_extraction.get_marker_neighbors(centers.values, angle_range=(-25, 25))

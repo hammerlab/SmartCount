@@ -18,3 +18,8 @@ metadata:
     street: '[0-9]{3}'
     apartment: '[0-9]{3}'
   path_format: '.*/.*{pump}/.*/.* {color} {condition} {cohort} {hours} hr/BFF_16X_St_{street}_Apt_{apartment}_{datetime}.tif'
+groupings:
+  # This list should include all fields necessary to identify a set of values specific to an experimental condition
+  # *IMPORTANT* Combinations of these fields must correspond to distinct apt_num/st_num namespaces (which
+  # usually translates to defining individual chips)
+  experimental_conditions: [pump, color, condition, cohort]

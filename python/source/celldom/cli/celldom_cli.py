@@ -6,11 +6,13 @@ import numpy as np
 import pandas as pd
 import celldom
 import glob
+import signal
+import faulthandler
 from celldom.execute import processing
 from celldom.config import experiment_config
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=os.getenv('LOGLEVEL', 'INFO'))
 logger = logging.getLogger('cli')
 os.environ['TF_CPP_MIN_LOG_LEVEL']='3'
 
@@ -119,6 +121,26 @@ class Celldom(object):
         output_path = _exec_nb('growth_rate_analysis_01.ipynb', data_dir, params, output_path=output_path)
         logger.info('Analysis complete; results saved to %s`', output_path)
 
+    def run_overview_app(self, experiment_config_path, output_dir):
+        """Run the experiment output overview application
+
+        Args:
+            experiment_config_path: Path to experiment configuration
+                (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
+            output_dir: Path to output directory; this is the `output_dir` given to `run_processor`
+                (e.g. /lab/data/celldom/output/20180820-G3-full)
+        """
+        from celldom_app.overview import config as app_config
+        app_config.initialize(experiment_config_path)
+
+        from celldom_app.overview import data as app_data
+        app_data.initialize(output_dir)
+
+        from celldom_app.overview import app
+        app.run_server()
+
 
 if __name__ == '__main__':
+    # Register debugging handler
+    faulthandler.register(signal.SIGUSR1)
     fire.Fire(Celldom)
