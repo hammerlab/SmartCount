@@ -22,7 +22,7 @@ class CellTrainingConfig(rcnn_config.CelldomTrainingConfig):
     MAX_GT_INSTANCES = 250
 
     # Suggestions per: https://github.com/matterport/Mask_RCNN/issues/498
-    TRAIN_ROIS_PER_IMAGE = 200  # 200
+    TRAIN_ROIS_PER_IMAGE = 250  # 200
 
     # Number of classes (including background)
     NUM_CLASSES = 1 + len(CLASS_NAMES)
@@ -34,7 +34,9 @@ class CellInferenceConfig(CellTrainingConfig):
     GPU_COUNT = rcnn_config.get_num_gpus_inference()
     IMAGES_PER_GPU = rcnn_config.get_num_images_per_gpu_inference()
 
+    DETECTION_MIN_CONFIDENCE = 0.5  # Default = 0.7
+
     # Matching to https://github.com/matterport/Mask_RCNN/blob/4129a27275c48c672f6fd8c6303a88ba1eed643b/
     # samples/nucleus/nucleus.py
     POST_NMS_ROIS_INFERENCE = 2000
-    DETECTION_MIN_CONFIDENCE = 0
+
