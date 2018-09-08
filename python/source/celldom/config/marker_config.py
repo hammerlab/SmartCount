@@ -54,7 +54,7 @@ class MarkerTrainingConfig(rcnn_config.CelldomTrainingConfig):
 class MarkerInferenceConfig(MarkerTrainingConfig):
     """Configuration for marker Mask-RCNN model inference"""
 
-    DETECTION_MIN_CONFIDENCE = .9
+    DETECTION_MIN_CONFIDENCE = .5
     GPU_COUNT = rcnn_config.get_num_gpus_inference()
     IMAGES_PER_GPU = rcnn_config.get_num_images_per_gpu_inference()
 

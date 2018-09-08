@@ -6,13 +6,16 @@ import tempfile
 import pandas as pd
 import numpy as np
 import hashlib
+from skimage import io as sk_io
 from collections import OrderedDict
 from celldom import io as celldom_io
 from celldom.config import cell_config, marker_config
 from celldom.dataset import marker_dataset
-from celldom.extract import NO_IMAGES, apartment_extraction
+from celldom.extract import NO_IMAGES, ALL_IMAGES, apartment_extraction
 from celldom.utils import assert_rgb
+from celldom.config.utils import get_apartment_image_shape
 from celldom.warnings import disable_skimage_warnings
+from cvutils.encoding import base64_encode_image
 
 # Disable known skimage warnings relating to this module and its usage
 disable_skimage_warnings()
@@ -23,6 +26,7 @@ DEFAULT_CELL_STAT_ATTRS = ['area', 'solidity', 'eccentricity']
 DEFAULT_CELL_STAT_PERCENTILES = [.1, .5, .9]
 DEFAULT_CELL_STAT_NAMES = ['mean', 'std', 'p10', 'p50', 'p90']
 DEFAULT_STRING_SIZE = 64
+PATH_STRING_SIZE = 256
 ACQ_PROP_PREFIX = 'acq_'
 
 
@@ -61,6 +65,13 @@ def _initialize_data_dir(data_dir):
     return data_dir
 
 
+def _encode_images(df):
+    img_fields = _get_image_fields(df.columns.values, ALL_IMAGES)
+    for c in img_fields:
+        df[c] = df[c].apply(lambda img: None if img is None else base64_encode_image(img))
+    return df
+
+
 class HDF5Datastore(Datastore):
 
     def __init__(self, data_dir, data_mode, data_file='data.h5'):
@@ -71,6 +82,14 @@ class HDF5Datastore(Datastore):
 
     def close(self):
         self.store.close()
+
+    def save_image(self, key, filename, image):
+        path = osp.join(self.data_dir, 'images', key)
+        if not osp.exists(path):
+            os.makedirs(path, exist_ok=True)
+        path = osp.join(path, filename)
+        sk_io.imsave(path, image)
+        return path
 
     def save_df(self, key, df, **kwargs):
         if len(df) > 0:
@@ -127,9 +146,24 @@ class Cytometer(object):
         self.data_dir = data_dir
         self.data_mode = data_mode
         self.enable_focus_scores = enable_focus_scores
+        self.supported_image_fields = self._get_supported_image_fields()
 
         self.datastore = None
         self.initialized = False
+
+    def _get_supported_image_fields(self):
+        # Keep this definition dynamic (i.e. not a constant) since it may at some point involve
+        # base64 fixed size calculations based on configs
+        return {
+            'apt_image': {
+                'path_field': 'apt_image_path',
+                'id_fields': ['acq_id', 'apt_id'],
+                'filename_format': 'apt_{}_{:05d}'
+            }
+        }
+
+    def _get_image_path_fields(self):
+        return [v['path_field'] for v in self.supported_image_fields.values()]
 
     def initialize(self):
         self.__enter__()
@@ -295,10 +329,38 @@ class Cytometer(object):
         return r.drop('cells')
 
     def save(self, acq_data, apt_data, cell_data):
-        self._save('table_acquisition', acq_data)
-        self._save('table_apartment', apt_data)
-        self._save('table_cell', cell_data)
+        for table, df in [
+            ('table_acquisition', acq_data),
+            ('table_apartment', apt_data),
+            ('table_cell', cell_data)
+        ]:
+            # Base64 all images before saving
+            self._save(table, _encode_images(df))
         return self
+
+
+    SUPPORTED_IMAGE_FIELDS = {
+        'apt_image': ('apt_image_path', ),
+    }
+
+    def _save_images(self, key, df, image_field):
+        field_meta = self.supported_image_fields[image_field]
+        # 'path_field': 'apt_image_path',
+        # 'id_fields': ['acq_id', 'apt_id'],
+        # 'filename_format': 'apt_{}_{:05d}'
+        paths = []
+        cols = field_meta['id_fields'] + [image_field]
+        for i, r in df[cols].iterrows():
+            image = r[image_field]
+            if image is None:
+                paths.append(None)
+                continue
+
+            # Save the image and record the path created for it
+            filename = field_meta['filename_format'].format(*r[field_meta['id_cols']])
+            image_path = self.datastore.save_image(key, filename + '.png', image)
+            paths.append(image_path)
+        return paths, field_meta['path_field']
 
     def _save(self, key, df):
         d = df.copy()
@@ -307,15 +369,22 @@ class Cytometer(object):
         col_sizes = {}
         object_cols = d.select_dtypes('object').columns.values
         for c in object_cols:
-            # Drop image fields and move on
-            if _is_image_field(c):
-                d = d.drop(c, axis=1)
-                continue
 
-            # Make a hacky string size exception for file paths (which are much longer)
+            # Save image fields separately as files, if they are supported (otherwise drop them and move on)
+            if _is_image_field(c):
+                if c in self.supported_image_fields:
+                    image_paths, path_field = self._save_images(key, d, c)
+                    d = d.drop(c, axis=1)
+                    d[path_field] = image_paths
+                    c = path_field
+                else:
+                    d = d.drop(c, axis=1)
+                    continue
+
+            # Make a string size exception for file paths (which are much longer)
             # and ids (which are fixed size)
-            if c == 'raw_image_path':
-                col_sizes[c] = 256
+            if c in ['raw_image_path'] + self._get_image_path_fields():
+                col_sizes[c] = PATH_STRING_SIZE
             elif c == ACQ_PROP_PREFIX + 'id':
                 col_sizes[c] = 32  # These are md5s
             else:

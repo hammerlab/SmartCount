@@ -8,7 +8,7 @@ from celldom.execute import analysis
 from celldom.execute import visualization
 from celldom.core import cytometry
 from celldom_app.overview import config
-from celldom_app import utils as app_utils
+from cvutils.encoding import base64_encode_image
 import logging
 
 logger = logging.getLogger(__name__)
@@ -133,7 +133,7 @@ def _get_apartment_image_data(df):
         g = g.sort_values('acq_datetime')
         row = {fields[i]: k[i] for i in range(len(k))}
         row['n'] = len(g)
-        row['encoded_images'] = [app_utils.get_encoded_image(img) for img in g['image']]
+        row['encoded_images'] = [base64_encode_image(img) for img in g['image']]
         row['dates'] = g['acq_datetime'].tolist()
         row['cell_counts'] = g['cell_count'].tolist()
         res.append(row)
