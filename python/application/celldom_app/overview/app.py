@@ -298,9 +298,24 @@ def update_apartment_dropdown_options(selected_row_indices, rows):
 def update_apartment_animations(selected_apartment, selected_row_indices, rows):
     if not selected_row_indices or not rows or not selected_apartment:
         return None
+    # Get growth data for all selected apartments (in table)
     df = get_selected_growth_data(rows, selected_row_indices)
-    df = data.get_apartment_image_data(df)
+
+    # Get growth data for the selected (single) apartment
+    mask = df.apply(data.get_apartment_key, axis=1) == selected_apartment
+    if not np.any(mask):
+        logger.error('Failed to find growth data for apartment %s (this should not be possible)', selected_apartment)
+        return []
+    if np.sum(mask) > 1:
+        logger.error('Apartment key %s matches multiple table rows (this should not be possible)', selected_apartment)
+        return []
+
+    # Pass one-row data frame to image data processor
+    df = data.get_apartment_image_data(df.loc[mask])
+    if selected_apartment not in df.index:
+        logger.error('Apartment image data does not contain apartment %s', selected_apartment)
     r = df.loc[selected_apartment]
+
     children = []
     for i in range(r['n']):
         title = '{} - {}'.format(r['dates'][i], r['cell_counts'][i])

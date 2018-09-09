@@ -65,24 +65,43 @@ def _initialize_data_dir(data_dir):
     return data_dir
 
 
+def image_compression_codec():
+    # See: https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_hdf.html
+    return os.getenv(celldom.ENV_CELLDOM_IMAGE_COMPRESSION_CODEC, 'blosc:lz4')
+
+
+def image_compression_level():
+    # See: https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_hdf.html
+    return int(os.getenv(celldom.ENV_CELLDOM_IMAGE_COMPRESSION_LEVEL, 9))
+
+
 class HDF5Datastore(Datastore):
 
-    def __init__(self, data_dir, data_mode, data_file='data.h5'):
+    def __init__(self, data_dir, mode, data_file='data.h5', **kwargs):
         """Datastore implementation based on local HDF5 files"""
         self.data_dir = _initialize_data_dir(data_dir)
         self.data_file = osp.join(self.data_dir, data_file)
-        self.store = pd.HDFStore(self.data_file, mode=data_mode)
+        self.store = pd.HDFStore(self.data_file, mode=mode, **kwargs)
 
     def close(self):
         self.store.close()
 
-    def save_image(self, key, image):
-        self.store.put(key + '/shape', pd.Series(image.shape))
-        self.store.put(key + '/data', pd.Series(image.ravel()))
+    def save_image(self, key, image, grayscale=True):
+
+        # If storing grayscale images, make sure not to store as redundant RGB representation
+        if grayscale and image.ndim == 3:
+            image = image[..., 0]
+
+        self.store.put(key + '/shape', pd.Series(image.shape), format='fixed')
+        self.store.put(key + '/data', pd.Series(image.ravel()), format='fixed')
 
     def load_image(self, key):
-        shape = tuple(self.store.get(key + '/shape'))
-        image = self.store.get(key + '/data')
+        """Load image array for the given key, or return nothing if key is not present"""
+        try:
+            shape = tuple(self.store.get(key + '/shape'))
+            image = self.store.get(key + '/data')
+        except KeyError:
+            return None
         return image.values.reshape(shape)
 
     def save_df(self, key, df, **kwargs):
@@ -135,28 +154,44 @@ class Acquisition(object):
         return hashlib.md5(key.encode('utf-8')).hexdigest()
 
 
+SUPPORTED_IMAGE_FIELDS = {
+    'apt_image': {'key_fields': ['acq_id', 'apt_id']},
+    # 'cell_image': {'key_fields': ['acq_id', 'apt_id', 'cell_id']}
+}
+
+
+def get_image_key(image_type, image_field, properties):
+    """Generate key (as string path) used to save images in HDF5 stores
+
+    Args:
+        image_type: Object type (apartment, cell, acqusition, etc.)
+        image_field: Name of image field associated with object (apt_image, raw_norm_image, cell_image, etc.)
+        properties: Any dictionary containing keys used to generate store key (acq_id, apt_id, etc.)
+    Returns:
+        String key path for HDF5 storage
+    """
+    field_meta = SUPPORTED_IMAGE_FIELDS[image_field]
+    keys = [image_type]
+
+    # Add to full key a select set of identifying fields for the image
+    for c in field_meta['key_fields']:
+        keys.append(c + '_' + str(properties[c]))
+    return '/'.join(keys)
+
+
 class Cytometer(object):
 
-    def __init__(self, config, data_dir, data_mode='w', enable_focus_scores=True):
+    def __init__(self, config, data_dir, output_mode='w', enable_focus_scores=True):
         self.config = config
         self.model_paths = _resolve_paths(config.get_cytometer_config())
         self.chip_config = config.get_chip_config()
         self.data_dir = data_dir
-        self.data_mode = data_mode
+        self.output_mode = output_mode
         self.enable_focus_scores = enable_focus_scores
-        self.supported_image_fields = self._get_supported_image_fields()
 
         self.datastore = None
         self.images = None
         self.initialized = False
-
-    def _get_supported_image_fields(self):
-        # Keep this definition dynamic (i.e. not a constant) since it may at some point involve
-        # base64 fixed size calculations based on configs
-        return {
-            'apt_image': {'key_fields': ['acq_id', 'apt_id']},
-            # 'cell_image': {'key_fields': ['acq_id', 'apt_id', 'cell_id']}
-        }
 
     def initialize(self):
         self.__enter__()
@@ -178,8 +213,12 @@ class Cytometer(object):
         tf_conf = celldom.initialize_keras_session()
 
         # Initialize datastore to maintain results
-        self.datastore = HDF5Datastore(self.data_dir, self.data_mode, data_file='data.h5')
-        self.images = HDF5Datastore(self.data_dir, self.data_mode, data_file='images.h5')
+        self.datastore = HDF5Datastore(self.data_dir, self.output_mode, data_file='data.h5')
+
+        comp_codec, comp_level = image_compression_codec(), image_compression_level()
+        logger.debug('Initializing image storage with codec %s (level = %s)', comp_codec, comp_level)
+        self.images = HDF5Datastore(self.data_dir, self.output_mode,
+                                    data_file='images.h5', complib=comp_codec, complevel=comp_level)
 
         # Initialize predictive models
         self.digit_model = keras.models.load_model(self.model_paths['digit'])
@@ -193,6 +232,8 @@ class Cytometer(object):
         )
         if self.enable_focus_scores:
             self.focus_model = miq.get_classifier(tf_conf)
+        else:
+            self.focus_model = None
         self.initialized = True
         return self
 
@@ -214,6 +255,12 @@ class Cytometer(object):
             self.images.close()
 
         return True
+
+    def flush(self):
+        if self.datastore is not None:
+            self.datastore.store.flush()
+        if self.images is not None:
+            self.images.store.flush()
 
     def _check_initialized(self):
         if not self.initialized:
@@ -336,20 +383,13 @@ class Cytometer(object):
         return self
 
     def _save_images(self, key, df, image_field):
-        field_meta = self.supported_image_fields[image_field]
+        field_meta = SUPPORTED_IMAGE_FIELDS[image_field]
         cols = field_meta['key_fields'] + [image_field]
         for i, r in df[cols].iterrows():
             image = r[image_field]
             if image is None:
                 continue
-            # Start key with acquisition/apartment/cell (i.e. object name)
-            keys = [key]
-
-            # Add to full key a select set of identifying fields for the image
-            for c in field_meta['key_fields']:
-                keys.append(c + '_' + str(r[c]))
-
-            self.images.save_image('/'.join(keys), image)
+            self.images.save_image(get_image_key(key, image_field, r), image)
 
     def _save(self, key, df):
         d = df.copy()
@@ -361,7 +401,7 @@ class Cytometer(object):
 
             # Save supported image fields in separate datastore
             if _is_image_field(c):
-                if c in self.supported_image_fields:
+                if c in SUPPORTED_IMAGE_FIELDS:
                     self._save_images(key, d, c)
                 d = d.drop(c, axis=1)
                 continue

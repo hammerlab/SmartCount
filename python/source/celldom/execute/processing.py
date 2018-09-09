@@ -1,7 +1,8 @@
 import tqdm
 import celldom
 from celldom.core import cytometry
-from celldom.extract import NO_IMAGES
+from celldom.extract import APT_IMAGES
+from celldom.exception import NoMarkerException
 import logging
 
 logger = logging.getLogger(__name__)
@@ -10,7 +11,8 @@ MAX_PROC_FAILURES = 10
 MAX_FILES_IN_MEM_RES = 500
 
 
-def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES, return_results=False, dpf=NO_IMAGES):
+def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
+                  return_results=False, dpf=APT_IMAGES, **kwargs):
 
     if return_results and len(files) > MAX_FILES_IN_MEM_RES:
         raise ValueError(
@@ -21,7 +23,7 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
         )
 
     results = []
-    with cytometry.Cytometer(exp_config, output_dir) as cytometer:
+    with cytometry.Cytometer(exp_config, output_dir, **kwargs) as cytometer:
         n_fail = 0
         for i, f in tqdm.tqdm(enumerate(files), total=len(files)):
             try:
@@ -40,12 +42,21 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
 
                 # Save the results
                 cytometer.save(*result)
+
+            # If there are no markers, log a more succinct message and still count this event as a failure
+            except NoMarkerException:
+                n_fail += 1
+                logger.error(
+                    'No markers found in file %s (failure threshold = %s, current failure count = %s)',
+                    f, max_failures, n_fail
+                )
+            # Otherwise log whole trace
             except Exception:
+                n_fail += 1
                 logger.exception(
                     'A failure occurred processing file %s (failure threshold = %s, current failure count = %s)',
                     f, max_failures, n_fail
                 )
-                n_fail += 1
             if n_fail >= max_failures:
                 logger.error('Threshold for max number of failures exceeded; skipping any further processing')
                 break

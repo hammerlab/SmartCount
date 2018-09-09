@@ -79,12 +79,14 @@ def get_marker_neighbors(centers, angle_range=(-25, 25), distance_range=None):
             angle1 = _angle_between(point, neighbor)
             angle2 = _angle_between(neighbor, point)
 
+            # Choose the angle with difference vector pointing to the right
+            angle = angle1 if abs(angle1) < abs(angle2) else angle2
+
             # Only add neighbors if they are within a certain angle and distance from the current point
-            if angle_range[0] <= angle1 <= angle_range[1] or \
-                    angle_range[0] <= angle2 <= angle_range[1]:
+            if angle_range[0] <= angle <= angle_range[1]:
                 distance = np.linalg.norm(neighbor - point)
                 if distance_range[0] <= distance <= distance_range[1]:
-                    candidates.append((i, point[0], point[1], j, neighbor[0], neighbor[1], angle1, distance))
+                    candidates.append((i, point[0], point[1], j, neighbor[0], neighbor[1], angle, distance))
 
         if not candidates:
             continue

@@ -7,14 +7,19 @@ import pandas as pd
 import celldom
 import glob
 import signal
+import copy
 import faulthandler
 from celldom.execute import processing
 from celldom.config import experiment_config
+from celldom.extract import NO_IMAGES, DataPersistenceFlags
 import logging
 
 logging.basicConfig(level=os.getenv('LOGLEVEL', 'INFO'))
 logger = logging.getLogger('cli')
 os.environ['TF_CPP_MIN_LOG_LEVEL']='3'
+
+IMAGE_NAMES = ['apartment', 'cell', 'acquisition']
+DEFAULT_IMAGES_TO_SAVE = ['apartment']
 
 
 def _nb_path(nb_name):
@@ -34,12 +39,26 @@ def _exec_nb(nb_name, data_dir, params, output_path=None):
     return output_path
 
 
+def _persistence_flags_from_names(names):
+    flags = dict(NO_IMAGES._asdict())
+    if names is None:
+        return flags
+    if 'apartment' in names:
+        flags['apt_image'] = True
+    if 'cell' in names:
+        flags['cell_image'] = True
+    if 'acquisition' in names:
+        flags['raw_norm_image'] = True
+    return DataPersistenceFlags(**flags)
+
+
 class Celldom(object):
     """Celldom CLI Application"""
 
     def run_processor(
             self, experiment_config_path, data_file_patterns, output_dir,
-            sample_rate=None, sample_count=None, max_failures=10):
+            sample_rate=None, sample_count=None, max_failures=10, images_to_save=DEFAULT_IMAGES_TO_SAVE,
+            output_mode='w', enable_focus_scores=True):
         """Run cell counting/cytometry for a given experiment configuration and set of raw data files
 
         Args:
@@ -53,8 +72,16 @@ class Celldom(object):
             sample_count: Fixed number of raw files to limit processing to
             max_failures: Maximum number of allowable image processing failures before entire command fails (default
                 is 10)
+            images_to_save: List of image types to store with experiment results; Must be any or all of ['apartment',
+                'cell', 'acquisition']; Default is 'apartment' only
+            output_mode: {'a', 'w', 'r+'}, default 'w'
+                - ``'w'``: Write; new output files are created and old ones are overwritten if they exist
+                - ``'a'``: Append; existing output files are opened for reading and writing, and if the files do
+                    not exist they are created.
+                ``'r+'``: Similar to ``'a'``, but the output files must already exist.
+            enable_focus_scores: Whether or not focus scores should be computed for each image (which is a relatively
+                expensive operation); default is True
         """
-
         # Get all matching files, deduplicate and sort
         files = []
         if isinstance(data_file_patterns, str):
@@ -65,6 +92,13 @@ class Celldom(object):
 
         if len(files) == 0:
             raise ValueError('No data files found to process for patterns "{}"'.format(data_file_patterns))
+
+        # Resolve flags for images to save
+        if images_to_save is not None:
+            for name in images_to_save:
+                if name not in IMAGE_NAMES:
+                    raise ValueError('Image type "{}" is not valid (must be one of {})'.format(name, IMAGE_NAMES))
+        dpf = _persistence_flags_from_names(images_to_save)
 
         logger.info('Found %s raw data files to process', len(files))
         if sample_count is not None:
@@ -78,7 +112,7 @@ class Celldom(object):
                 raise ValueError('Sample rate must in (0, 1] (not {})'.format(sample_rate))
             logger.info('Sampling raw files using given rate %s', sample_rate)
             files = pd.Series(files).sample(frac=sample_rate, random_state=celldom.seed)
-        logger.info('Number of raw data files after sampling: %s', len(files))
+        logger.info('Number of data files chosen by sampling: %s', len(files))
 
         logger.info('Loading experiment configuration from path: %s', experiment_config_path)
         exp_config = experiment_config.ExperimentConfig(celldom.read_config(experiment_config_path))
@@ -87,7 +121,13 @@ class Celldom(object):
             os.makedirs(output_dir, exist_ok=True)
 
         logger.info('Running data processor (output dir = %s) ...', output_dir)
-        processing.run_cytometer(exp_config, output_dir, files, max_failures=max_failures)
+        processing.run_cytometer(
+            exp_config, output_dir, files,
+            max_failures=max_failures, dpf=dpf,
+            # Cytometer arguments
+            output_mode=output_mode,
+            enable_focus_scores=enable_focus_scores
+        )
         logger.info('Processing complete')
 
     def analyze_growth_rates(
