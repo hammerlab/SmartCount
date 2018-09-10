@@ -81,12 +81,25 @@ def get_header_layout():
     )
 
 
+def get_array_data():
+    return data.get_array_data()
+
+
+def get_acquisition_data():
+    return data.get_acquisition_data()
+
+
+def get_apartment_data():
+    return data.get_growth_data()
+
+
 def get_page_apartments():
-    df = data.get_growth_data()
+    df = get_apartment_data()
 
     fields = data.get_apartment_key_fields() + [
         'growth_rate', 'min_cell_count', 'max_cell_count', 'first_count', 'first_date', 'elapsed_hours_min', 'n'
     ]
+
     # TODO: Apply filters on first_count and elapsed_hours_min
     return [
         html.Details([
@@ -108,16 +121,36 @@ def get_page_apartments():
                             len(df),
                             ', '.join(['**{}**'.format(f) for f in cfg.experimental_condition_fields])
                         )
-                    )
+                    ),
+                    html.Div([
+                        dcc.Markdown(
+                            '-----\n'
+                            '**Custom data operations**\n\n'
+                            'Enter any custom apartment data processing code in the field below, and it will be\n'
+                            'applied to the data shown in the following table (after pressing the "Apply" button).\n'
+                            'Examples:\n'
+                            '```\n'
+                            'df = df[df[\'apt_num\'] == \'01\']\n'
+                            'df.to_csv(\'/tmp/apartment_data.csv\')\n'
+                            'print(\'Data filtered and saved to csv at "/tmp/apartment_data.csv"\')\n'
+                            '```\n\n'
+                        ),
+                        dcc.Textarea(
+                            placeholder='',
+                            value='',
+                            style={'width': '100%', 'height': '125px', 'margin-top': '10px'},
+                            id='code-apartments'
+                        ),
+                        html.Button(
+                            'Apply',
+                            id='code-apartments-apply',
+                        ),
+
+                    ])
                 ])
             ]
         ),
         html.Div([
-            # html.Button(
-            #     'Unselect All',
-            #     id='reset-growth-table',
-            #     style={'position': 'relative', 'top': '40px', 'border-width': '0px', 'padding': '10px'}
-            # ),
             dt.DataTable(
                 rows=df.to_dict('records'),
                 columns=fields,
@@ -127,7 +160,7 @@ def get_page_apartments():
                 sortable=True,
                 selected_row_indices=[],
                 max_rows_in_viewport=cfg.max_table_rows,
-                id='table-growth-data'
+                id='table-apartments-data'
             )
         ]),
         html.Div([
@@ -156,7 +189,7 @@ def get_page_apartments():
 
 
 def get_page_arrays():
-    df = data.get_array_data()
+    df = get_array_data()
     return [
         html.Details([
             html.Summary('Array Data', style={'font-size': '18'}),
@@ -212,8 +245,8 @@ def get_page_arrays():
 
 
 def get_summary_acquisition_layout():
-    df_acq = data.get_acquisition_data()
-    df_grd = data.get_growth_data()
+    df_acq = get_acquisition_data()
+    df_grd = get_apartment_data()
     n_raw_files = len(df_acq)
 
     # Count raw files processed for each experimental condition
@@ -331,14 +364,29 @@ for page_name in PAGE_NAMES:
 
 def get_selected_growth_data(rows, selected_row_indices):
     df = pd.DataFrame([rows[i] for i in selected_row_indices])
-    df['cell_counts'] = df['cell_counts'].apply(json.loads)
-    df['acq_ids'] = df['acq_ids'].apply(json.loads)
+    for c in ['cell_counts', 'acq_ids']:
+        df[c] = df[c].apply(json.loads)
     return df
 
 
 @app.callback(
+    Output('table-apartments-data', 'rows'),
+    [Input('code-apartments-apply', 'n_clicks')],
+    [State('code-apartments', 'value')]
+)
+def update_apartment_table(_, code):
+    df = get_apartment_data()
+    if code:
+        logger.info('Applying custom code to apartment data:\n%s', code)
+        local_vars = {'df': df}
+        exec(code, globals(), local_vars)
+        df = local_vars['df']
+    return df.to_dict(orient='records')
+
+
+@app.callback(
     Output('apartment-dropdown', 'options'),
-    [Input('table-growth-data', 'selected_row_indices'), Input('table-growth-data', 'rows')]
+    [Input('table-apartments-data', 'selected_row_indices'), Input('table-apartments-data', 'rows')]
 )
 def update_apartment_dropdown_options(selected_row_indices, rows):
     if not selected_row_indices:
@@ -354,7 +402,7 @@ def update_apartment_dropdown_options(selected_row_indices, rows):
 @app.callback(
     Output('apartment-animation', 'children'),
     [Input('apartment-dropdown', 'value')],
-    [State('table-growth-data', 'selected_row_indices'), State('table-growth-data', 'rows')]
+    [State('table-apartments-data', 'selected_row_indices'), State('table-apartments-data', 'rows')]
 )
 def update_apartment_animations(selected_apartment, selected_row_indices, rows):
     if not selected_row_indices or not rows or not selected_apartment:
@@ -394,7 +442,7 @@ def update_apartment_animations(selected_apartment, selected_row_indices, rows):
 
 @app.callback(
     Output('graph-growth-data', 'figure'),
-    [Input('table-growth-data', 'selected_row_indices'), Input('table-growth-data', 'rows')]
+    [Input('table-apartments-data', 'selected_row_indices'), Input('table-apartments-data', 'rows')]
 )
 def update_apartment_growth_graph(selected_row_indices, rows):
     if not selected_row_indices or not rows:
@@ -425,12 +473,12 @@ def update_apartment_growth_graph(selected_row_indices, rows):
 
 
 @app.callback(
-    Output('table-growth-data', 'selected_row_indices'),
+    Output('table-apartments-data', 'selected_row_indices'),
     [Input('graph-array-data', 'clickData')],
     [
         State('array-dropdown', 'value'),
-        State('table-growth-data', 'selected_row_indices'),
-        State('table-growth-data', 'rows')
+        State('table-apartments-data', 'selected_row_indices'),
+        State('table-apartments-data', 'rows')
     ]
 )
 def update_growth_table_selected_rows(click_data, array, selected_row_indices, rows):
@@ -466,7 +514,7 @@ def update_summary_distribution_graph(selected_row_indices, rows):
     keys = pd.DataFrame(rows).iloc[selected_row_indices].set_index(cfg.experimental_condition_fields).index
 
     # Subset growth data to only experimental conditions selected
-    df = data.get_growth_data()
+    df = get_apartment_data()
     df = df.set_index(cfg.experimental_condition_fields).loc[keys]
 
     # Determine whether or not enough groups of experimental conditions were selected

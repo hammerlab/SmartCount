@@ -144,9 +144,6 @@ def initialize(data_dir):
             cache[KEY_CELL_DATA] = _clean(store.get('cell'))
             cache[KEY_APT_DATA] = _clean(store.get('apartment'))
             cache[KEY_ACQ_DATA] = store.get('acquisition')
-            # cache[KEY_CELL_DATA] = _clean(store.get('table_cell'))
-            # cache[KEY_APT_DATA] = _clean(store.get('table_apartment'))
-            # cache[KEY_ACQ_DATA] = store.get('table_acquisition')
             break
         except (AttributeError, HDF5ExtError):
             ct += 1
