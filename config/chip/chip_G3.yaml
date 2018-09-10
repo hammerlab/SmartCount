@@ -23,3 +23,6 @@ st_num_digit_bounds:
 st_num_digit_count: 2
 st_num_margins: {bottom: 8, left: -188, right: -138, top: -34}
 marker_spacing: {horizontal: 260, vertical: 198}
+# Min/max address ranges on chip
+apt_num_range: [0, 56]
+st_num_range: [0, 15]

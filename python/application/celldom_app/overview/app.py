@@ -14,6 +14,7 @@ import logging
 import glob
 from celldom_app.overview import data
 from celldom_app.overview import config
+from celldom_app.overview import utils as app_utils
 
 logging.basicConfig(level=os.getenv('LOGLEVEL', 'INFO'))
 logger = logging.getLogger(__name__)
@@ -51,6 +52,13 @@ def get_header_layout():
                 }
             ),
             html.Div([
+                    html.Div(
+                        html.Button(
+                            'Arrays', id='link-arrays',
+                            style={'color': 'white', 'border-width': '0px'}
+                        ),
+                        style={'display': 'inline', 'float': 'right'}
+                    ),
                     html.Div(
                         html.Button(
                             'Apartments', id='link-apartments',
@@ -105,11 +113,11 @@ def get_page_apartments():
             ]
         ),
         html.Div([
-            html.Button(
-                'Unselect All',
-                id='reset-growth-table',
-                style={'position': 'relative', 'top': '40px', 'border-width': '0px', 'padding': '10px'}
-            ),
+            # html.Button(
+            #     'Unselect All',
+            #     id='reset-growth-table',
+            #     style={'position': 'relative', 'top': '40px', 'border-width': '0px', 'padding': '10px'}
+            # ),
             dt.DataTable(
                 rows=df.to_dict('records'),
                 columns=fields,
@@ -144,6 +152,62 @@ def get_page_apartments():
             ],
             className='row'
         )
+    ]
+
+
+def get_page_arrays():
+    df = data.get_array_data()
+    return [
+        html.Details([
+            html.Summary('Array Data', style={'font-size': '18'}),
+            html.Div([
+                dcc.Markdown('TBD')
+            ])
+        ]
+        ),
+        html.Div([
+            dt.DataTable(
+                rows=df.to_dict('records'),
+                columns=df.columns.tolist(),
+                editable=False,
+                row_selectable=True,
+                filterable=True,
+                sortable=True,
+                selected_row_indices=[],
+                max_rows_in_viewport=cfg.max_table_rows,
+                id='table-array-data'
+            )
+        ]),
+        html.Div([
+                html.Div(
+                    dcc.Dropdown(
+                        id='array-dropdown',
+                        placeholder='Choose array to view data for (must be selected in table first)'
+                    ),
+                    className='three columns'
+                ),
+                html.Div(
+                    dcc.Dropdown(
+                        id='array-metric-dropdown',
+                        placeholder='Choose metric to view data for',
+                        options=[
+                            # {'label': 'Number of Measurements', 'value': 'measurement_count'},
+                            {'label': 'Cell Count Over Time', 'value': 'cell_count'},
+                            # {'label': 'Growth Rate', 'value': 'growth_rate'}
+                        ],
+                        value='cell_count'
+                    ),
+                    className='three columns',
+                    style={'margin-left': '0'}
+                )
+            ],
+            className='row'
+        ),
+        html.Div([
+                dcc.Graph(id='graph-array-data')
+            ],
+            className='row'
+        ),
     ]
 
 
@@ -206,7 +270,6 @@ def get_summary_acquisition_layout():
 def get_page_summary():
     return [
         html.Div(get_summary_acquisition_layout()),
-        #dcc.Graph(figure=get_summary_distribution_figure(), id='graph-distributions')
         dcc.Graph(id='graph-summary-distributions')
     ]
 
@@ -218,7 +281,8 @@ def get_layout():
             # Add empty table to avoid: https://community.plot.ly/t/unable-to-load-table-on-multipage-dash/6347
             html.Div([
                 html.Div(get_page_summary(), id='page-summary'),
-                html.Div(get_page_apartments(), id='page-apartments')
+                html.Div(get_page_apartments(), id='page-apartments'),
+                html.Div(get_page_arrays(), id='page-arrays')
             ])
 
         ]
@@ -228,37 +292,34 @@ def get_layout():
 app.layout = get_layout
 
 
-@app.callback(
-    Output('page-summary', 'style'),
-    [Input('link-summary', 'n_clicks_timestamp'), Input('link-apartments', 'n_clicks_timestamp')]
-)
-def select_page_summary(click1, click2):
-    if click1 is None and click2 is None:
-        return {'display': 'block'}
-    if (click1 or 0) > (click2 or 0):
-        return {'display': 'block'}
-    else:
-        return {'display': 'none'}
+def get_selected_button_index(click_timestamps):
+    return np.argmax([(ts or 0) for ts in click_timestamps])
 
 
-@app.callback(
-    Output('page-apartments', 'style'),
-    [Input('link-summary', 'n_clicks_timestamp'), Input('link-apartments', 'n_clicks_timestamp')]
-)
-def select_page_apartments(click1, click2):
-    # if click1 is None and click2 is None:
-    #     return {'display': 'block'}
-    if (click2 or 0) > (click1 or 0):
-        return {'display': 'block'}
-    else:
-        return {'display': 'none'}
+PAGE_NAMES = ['summary', 'apartments', 'arrays']
 
 
-for link_type in ['summary', 'apartments']:
+def add_page_callback(page_name, page_index):
     @app.callback(
-        Output('link-' + link_type, 'style'),
-        [Input('page-' + link_type, 'style')],
-        [State('link-' + link_type, 'style')]
+        Output('page-' + page_name, 'style'),
+        [Input('link-' + pn, 'n_clicks_timestamp') for pn in PAGE_NAMES]
+    )
+    def select_page(*timestamps):
+        if get_selected_button_index(timestamps) == page_index:
+            return {'display': 'block'}
+        else:
+            return {'display': 'none'}
+
+
+for page_index, page_name in enumerate(PAGE_NAMES):
+    add_page_callback(page_name, page_index)
+
+
+for page_name in PAGE_NAMES:
+    @app.callback(
+        Output('link-' + page_name, 'style'),
+        [Input('page-' + page_name, 'style')],
+        [State('link-' + page_name, 'style')]
     )
     def update_link_style(page_style, style):
         if page_style and page_style['display'] == 'block':
@@ -365,10 +426,29 @@ def update_apartment_growth_graph(selected_row_indices, rows):
 
 @app.callback(
     Output('table-growth-data', 'selected_row_indices'),
-    [Input('reset-growth-table', 'n_clicks')]
+    [Input('graph-array-data', 'clickData')],
+    [
+        State('array-dropdown', 'value'),
+        State('table-growth-data', 'selected_row_indices'),
+        State('table-growth-data', 'rows')
+    ]
 )
-def reset_growth_table_selected_rows(_):
-    return []
+def update_growth_table_selected_rows(click_data, array, selected_row_indices, rows):
+    # {'points': [{'z': 2, 'curveNumber': 0, 'y': 'st 08', 'x': 'apt 11'}]}
+    if not array or not rows or not click_data or 'points' not in click_data or not click_data['points']:
+        return selected_row_indices
+
+    selected_row_indices = selected_row_indices or []
+    apt_num, st_num = click_data['points'][0]['x'], click_data['points'][0]['y']
+    apt_num, st_num = apt_num.split(' ')[1], st_num.split(' ')[1]
+    key = data.append_key(array, [apt_num, st_num])
+
+    keys = np.array([data.get_apartment_key(r) for r in rows])
+
+    # Get indices where keys are equal, avoiding argwhere since results are grouped by element
+    indices = list(np.flatnonzero(keys == key))
+    selected_row_indices.extend(indices)
+    return selected_row_indices
 
 
 @app.callback(
@@ -421,6 +501,85 @@ def update_summary_distribution_graph(selected_row_indices, rows):
             fig_layout['xaxis'] = {'title': '24hr Growth Rate (log2)'}
             fig_layout['yaxis'] = {'title': 'Number of Apartments'}
     return {'data': fig_data, 'layout': fig_layout}
+
+
+@app.callback(
+    Output('array-dropdown', 'options'),
+    [Input('table-array-data', 'selected_row_indices'), Input('table-array-data', 'rows')]
+)
+def update_array_dropdown_options(selected_row_indices, rows):
+    if not selected_row_indices or not rows:
+        return []
+
+    df = pd.DataFrame([rows[i] for i in selected_row_indices])
+    options = []
+    for _, r in df.iterrows():
+        key = data.get_array_key(r)
+        options.append({'label': key, 'value': key})
+    return options
+
+
+@app.callback(
+    Output('graph-array-data', 'figure'),
+    [
+        Input('array-dropdown', 'value'),
+        Input('array-metric-dropdown', 'value')
+    ]
+)
+def update_array_graph(array, metric):
+    if not array or not metric:
+        return dict(data=[], layout={})
+
+    # Subset data to selected array TODO: choose data based on metric
+    df = data.get_apartment_data()
+    df = df.set_index(data.get_array_key_fields()).loc[tuple(array.split(':'))]
+
+    if len(df) == 0:
+        return dict(data=[], layout={})
+    df = df.copy()
+
+    date_map = app_utils.group_dates(df['acq_datetime'], min_gap_seconds=cfg.min_measurement_gap_seconds)
+    df['acq_datetime_group'] = df['acq_datetime'].map(date_map)
+
+    fig_data = []
+    val_range = df['cell_count'].min(), df['cell_count'].max()
+    for i, (k, g) in enumerate(df.groupby('acq_datetime_group')):
+        ct = g.groupby(['st_num', 'apt_num'])['cell_count'].median().unstack().fillna(-1)
+        fig_data.append(dict(
+            visible=False,
+            y=['st {}'.format(v) for v in ct.index],
+            x=['apt {}'.format(v) for v in ct.columns],
+            z=ct.values,
+            zmin=val_range[0],
+            zmax=val_range[1],
+            type='heatmap',
+            colorscale='Portland',
+            name=k
+        ))
+
+    # See: https://plot.ly/python/reference/#layout-updatemenus
+    steps = []
+    for i in range(len(fig_data)):
+        step = dict(
+            method='restyle',
+            args=['visible', [False] * len(fig_data)],
+            label=fig_data[i]['name']
+        )
+        step['args'][1][i] = True
+        steps.append(step)
+
+    fig_data[0]['visible'] = True
+
+    sliders = [dict(
+        active=0,
+        currentvalue={"prefix": "Date: "},
+        pad={"t": 75},
+        steps=steps
+    )]
+
+    fig_layout = dict(title=array, sliders=sliders, margin=dict(b=50, t=50))
+
+    return dict(data=fig_data, layout=fig_layout)
 
 
 def run_server():

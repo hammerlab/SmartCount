@@ -340,7 +340,8 @@ class Cytometer(object):
         # Extract a data frame with rows representing each cell
         # Note: If you don't keep empty data frames out of the list to concatenate,
         # it messes up the data types of results
-        cell_data = pd.concat([self._prepare_cells(r) for r in partitions if len(r['cells']) > 0])
+        cell_data = [self._prepare_cells(r) for r in partitions if len(r['cells']) > 0]
+        cell_data = pd.concat(cell_data) if cell_data else pd.DataFrame()
 
         # Compute cell stats at apartment level and drop cells field
         apt_data = pd.DataFrame([self._prepare_apt(r, dpf) for r in partitions])
@@ -379,7 +380,8 @@ class Cytometer(object):
             ('apartment', apt_data),
             ('cell', cell_data)
         ]:
-            self._save(table, df)
+            if df is not None and len(df) > 0:
+                self._save(table, df)
         return self
 
     def _save_images(self, key, df, image_field):
