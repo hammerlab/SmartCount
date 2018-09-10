@@ -8,17 +8,20 @@ ENV_APP_PORT = 'APP_PORT'
 ENV_APP_HOST_IP = 'APP_HOST_IP'
 ENV_APP_APT_IMG_HEIGHT_PX = 'APP_APT_IMG_HEIGHT_PX'
 ENV_APP_APT_IMG_TMPDIR = 'APP_APT_IMG_TMPDIR'
+ENV_APP_MIN_MEASUREMENT_GAP_SECS = 'APP_APP_MIN_MEASUREMENT_GAP_SECS'
 
 DEFAULT_APP_HOST_IP = '0.0.0.0'
-DEFAULT_APP_PORT = 6006
+DEFAULT_APP_PORT = 8050
 DEFAULT_APP_APT_IMG_HEIGHT_PX = '350'
-DEFAULT_APP_APT_IMG_TMPDIR = '/tmp/apartment_image_output'
+DEFAULT_APP_APT_IMG_TMPDIR = '/tmp/app_images'
+DEFAULT_APP_MIN_MEASUREMENT_GAP_SECS = 3600
 
 
 class AppConfig(object):
 
     def __init__(self, exp_config):
         self.exp_config = exp_config
+        self.experimental_condition_fields = self.exp_config.experimental_condition_fields
 
     @property
     def app_port(self):
@@ -31,11 +34,6 @@ class AppConfig(object):
     @property
     def enabled_cached_data(self):
         return True
-
-    @property
-    def experimental_condition_fields(self):
-        # pass-through property for brevity
-        return self.exp_config.experimental_condition_fields
 
     @property
     def apartment_image_height(self):
@@ -56,6 +54,10 @@ class AppConfig(object):
     @property
     def apt_img_tmpdir(self):
         return os.getenv(ENV_APP_APT_IMG_TMPDIR, DEFAULT_APP_APT_IMG_TMPDIR)
+
+    @property
+    def min_measurement_gap_seconds(self):
+        return int(os.getenv(ENV_APP_MIN_MEASUREMENT_GAP_SECS, DEFAULT_APP_MIN_MEASUREMENT_GAP_SECS))
 
 
 def initialize(exp_config_path):

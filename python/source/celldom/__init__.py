@@ -8,14 +8,17 @@ seed = int(os.getenv(ENV_SEED, 38923))
 ENV_CELLDOM_VERSION = 'CELLDOM_VERSION'
 ENV_CELLDOM_DATA_DIR = 'CELLDOM_DATA_DIR'
 ENV_CELLDOM_DATASET_DIR = 'CELLDOM_DATASET_DIR'
+ENV_CELLDOM_TRAINING_DATASET_DIR = 'CELLDOM_TRAINING_DATASET_DIR'
 ENV_CELLDOM_MODEL_DIR = 'CELLDOM_MODEL_DIR'
 ENV_CELLDOM_REPO_DIR = 'CELLDOM_REPO_DIR'
 ENV_CELLDOM_CACHE_DIR = 'CELLDOM_CACHE_DIR'
 ENV_CELLDOM_MAX_DOWNLOAD_ATTEMPTS = 'CELLDOM_MAX_DOWNLOAD_ATTEMPTS'
 ENV_CELLDOM_GPU_MEMORY_FRACTION = 'CELLDOM_GPU_MEMORY_FRACTION'
 ENV_CELLDOM_NB_LOG_LEVEL = 'CELLDOM_NB_LOG_LEVEL'
+ENV_CELLDOM_IMAGE_COMPRESSION_CODEC = 'CELLDOM_IMAGE_COMPRESSION_CODEC'
+ENV_CELLDOM_IMAGE_COMPRESSION_LEVEL = 'CELLDOM_IMAGE_COMPRESSION_LEVEL'
 
-DEFAULT_VERSION = 'r0.2'
+DEFAULT_VERSION = 'r0.6'
 
 
 def get_version():
@@ -57,6 +60,16 @@ def get_dataset_dir():
     default to $CELLDOM_DATA_DIR/dataset
     """
     return os.getenv(ENV_CELLDOM_DATASET_DIR, osp.join(get_data_dir(), 'dataset'))
+
+
+def get_training_dataset_dir():
+    """Return directory to contain separate training datasets explicitly for modeling (which may combine data
+    across multiple source datasets)
+
+    This can be overriden by 'CELLDOM_TRAINING_DATASET_DIR' environment variable but if not set will
+    default to $CELLDOM_DATA_DIR/dataset/training
+    """
+    return os.getenv(ENV_CELLDOM_TRAINING_DATASET_DIR, osp.join(get_dataset_dir(), 'training'))
 
 
 def get_model_dir():

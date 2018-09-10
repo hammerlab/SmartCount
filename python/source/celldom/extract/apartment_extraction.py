@@ -86,7 +86,7 @@ def partition_chip(img, centers, chip_config, focus_model=None):
         assert_rgb(apt_img)
 
         # If an image focus/quality model was given, use it to score the apartment image
-        focus_score = None
+        focus_score = 0
         if focus_model is not None:
             # Note that images are carried around through most of the codebase as RGB with repeated channels,
             # and the focus classifier expects 2D images so it is converted here
@@ -117,7 +117,7 @@ def partition_chip(img, centers, chip_config, focus_model=None):
 def extract(
         image, marker_model, chip_config,
         digit_model=None, cell_model=None, focus_model=None,
-        chip_scaling=False, dpf=NO_IMAGES):
+        dpf=NO_IMAGES, angle_tolerance=25, distance_tolerance=20):
 
     # Make sure provided image is RGB
     assert_rgb(image)
@@ -132,7 +132,19 @@ def extract(
         raise NoMarkerException('No markers found in image')
 
     # Determine marker neighbors based on an angular offset threshold and proximity
-    neighbors = marker_extraction.get_marker_neighbors(centers.values, angle_range=(-25, 25))
+    spacing = chip_config['marker_spacing']['horizontal']
+    neighbors = marker_extraction.get_marker_neighbors(
+        centers.values,
+        # Specify angle and distance windows used to identify valid neighboring markers
+        angle_range=(-angle_tolerance, angle_tolerance),
+        distance_range=(spacing - distance_tolerance, spacing + distance_tolerance)
+    )
+
+    # Restrict centers of markers to only those found to have valid neighbors
+    if len(neighbors) == 0:
+        raise NoMarkerException('No valid markers found in image')
+    centers = centers.iloc[neighbors['point_idx']]
+    assert len(centers) > 0
 
     ########################
     ## Apply Transformations
@@ -140,15 +152,10 @@ def extract(
 
     # Infer the overall rotation and scale of the image as the median of those same
     # quantities determined for each adjacent marker pair
-    rotation, scale = neighbors['angle'].median(), neighbors['distance'].median()
+    rotation = neighbors['angle'].median()
 
-    # Apply the inferred transformations to the raw image (and marker locations since
-    # they will be used as the basis for extracting necessary patches)
-    scale_factor = None
-    if chip_scaling:
-        scale_factor = chip_config['target_scale_factor'] / scale
-
-    norm_image, norm_centers = apply_normalization(image, centers, rotation=rotation, scale=scale_factor)
+    # Apply inferred rotation
+    norm_image, norm_centers = apply_normalization(image, centers, rotation=rotation)
 
     # Rotation and rescaling may result in a change of bit depth which should be undone
     # as soon as possible to maintain consistency with uint8 processing
@@ -175,7 +182,7 @@ def extract(
         for partition in partitions:
             partition['cells'] = cell_extraction.extract(partition['apt_image'], cell_model, chip_config, dpf=dpf)
 
-    return partitions, norm_image, norm_centers, neighbors, rotation, scale
+    return partitions, norm_image, norm_centers, neighbors, rotation
 
 
 def visualize_partition(partition, prep_fn=None):

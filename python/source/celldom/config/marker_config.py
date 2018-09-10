@@ -3,6 +3,7 @@ from celldom.constant import CLASS_NAME_MARKER
 import os
 
 CLASS_NAMES = [CLASS_NAME_MARKER]
+TARGET_SIZE = 512
 
 
 class MarkerTrainingConfig(rcnn_config.CelldomTrainingConfig):
@@ -11,13 +12,15 @@ class MarkerTrainingConfig(rcnn_config.CelldomTrainingConfig):
     # Give the configuration a recognizable name
     NAME = "celldom-marker"
 
-    # Raw chip images seen so far all have shape (1024, 1376) and 1408 is
-    # used here as it is already divisible by 2 at least 6 times (per MRCNN requirements).
-    # Note that is crucial that IMAGE_MIN_DIM be 1024 here to ensure that the images
-    # are not actually resized -- only padded in both directions to 1408x1408
+    # Raw chip images seen so far all have shape (1024, 1376) and resizing
+    # them to 512x512 still preserves enough information for segmentation
     IMAGE_RESIZE_MODE = "square"
-    IMAGE_MIN_DIM = 1024
-    IMAGE_MAX_DIM = 1408
+    IMAGE_MIN_DIM = TARGET_SIZE
+    IMAGE_MAX_DIM = TARGET_SIZE
+
+    # IMAGE_RESIZE_MODE = "square"
+    # IMAGE_MIN_DIM = 1024
+    # IMAGE_MAX_DIM = 1408
 
     # IMAGE_RESIZE_MODE = "crop"
     # IMAGE_MIN_DIM = 64
@@ -33,12 +36,12 @@ class MarkerTrainingConfig(rcnn_config.CelldomTrainingConfig):
     # when initializing models about incorrect shapes
     # RPN_ANCHOR_RATIOS = [0.5, 1, 2]
 
-    # POST_NMS_ROIS_INFERENCE = 250
-    # POST_NMS_ROIS_TRAINING = 250
+    POST_NMS_ROIS_TRAINING = 1000  # 2000
+    POST_NMS_ROIS_INFERENCE = 500  # 1000
     # RPN_TRAIN_ANCHORS_PER_IMAGE = 250
 
     # Suggestions per: https://github.com/matterport/Mask_RCNN/issues/498
-    TRAIN_ROIS_PER_IMAGE = 200  # 200
+    TRAIN_ROIS_PER_IMAGE = 100  # 200
 
     # Number of classes (including background)
     NUM_CLASSES = 1 + len(CLASS_NAMES)
@@ -51,6 +54,7 @@ class MarkerTrainingConfig(rcnn_config.CelldomTrainingConfig):
 class MarkerInferenceConfig(MarkerTrainingConfig):
     """Configuration for marker Mask-RCNN model inference"""
 
+    DETECTION_MIN_CONFIDENCE = .5
     GPU_COUNT = rcnn_config.get_num_gpus_inference()
     IMAGES_PER_GPU = rcnn_config.get_num_images_per_gpu_inference()
 

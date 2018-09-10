@@ -6,13 +6,16 @@ import tempfile
 import pandas as pd
 import numpy as np
 import hashlib
+from skimage import io as sk_io
 from collections import OrderedDict
 from celldom import io as celldom_io
 from celldom.config import cell_config, marker_config
 from celldom.dataset import marker_dataset
-from celldom.extract import NO_IMAGES, apartment_extraction
+from celldom.extract import NO_IMAGES, ALL_IMAGES, APT_IMAGES, apartment_extraction
 from celldom.utils import assert_rgb
+from celldom.config.utils import get_apartment_image_shape
 from celldom.warnings import disable_skimage_warnings
+from cvutils.encoding import base64_encode_image
 
 # Disable known skimage warnings relating to this module and its usage
 disable_skimage_warnings()
@@ -23,6 +26,7 @@ DEFAULT_CELL_STAT_ATTRS = ['area', 'solidity', 'eccentricity']
 DEFAULT_CELL_STAT_PERCENTILES = [.1, .5, .9]
 DEFAULT_CELL_STAT_NAMES = ['mean', 'std', 'p10', 'p50', 'p90']
 DEFAULT_STRING_SIZE = 64
+PATH_STRING_SIZE = 256
 ACQ_PROP_PREFIX = 'acq_'
 
 
@@ -40,7 +44,7 @@ def _resolve_paths(config):
         # If it is a url, download it if not already cached
         elif location_type == 'url':
             url = location['location']
-            cache_path = osp.join('models', celldom.get_version(), osp.basename(url))
+            cache_path = osp.join('models', osp.basename(url))
             model_paths[model_name] = celldom_io.cache(url, cache_path)
         else:
             raise ValueError('Model location type "{}" not valid (should be "file" or "url")'.format(location_type))
@@ -61,16 +65,44 @@ def _initialize_data_dir(data_dir):
     return data_dir
 
 
+def image_compression_codec():
+    # See: https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_hdf.html
+    return os.getenv(celldom.ENV_CELLDOM_IMAGE_COMPRESSION_CODEC, 'blosc:lz4')
+
+
+def image_compression_level():
+    # See: https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_hdf.html
+    return int(os.getenv(celldom.ENV_CELLDOM_IMAGE_COMPRESSION_LEVEL, 9))
+
+
 class HDF5Datastore(Datastore):
 
-    def __init__(self, data_dir, data_mode, data_file='data.h5'):
+    def __init__(self, data_dir, mode, data_file='data.h5', **kwargs):
         """Datastore implementation based on local HDF5 files"""
         self.data_dir = _initialize_data_dir(data_dir)
         self.data_file = osp.join(self.data_dir, data_file)
-        self.store = pd.HDFStore(self.data_file, mode=data_mode)
+        self.store = pd.HDFStore(self.data_file, mode=mode, **kwargs)
 
     def close(self):
         self.store.close()
+
+    def save_image(self, key, image, grayscale=True):
+
+        # If storing grayscale images, make sure not to store as redundant RGB representation
+        if grayscale and image.ndim == 3:
+            image = image[..., 0]
+
+        self.store.put(key + '/shape', pd.Series(image.shape), format='fixed')
+        self.store.put(key + '/data', pd.Series(image.ravel()), format='fixed')
+
+    def load_image(self, key):
+        """Load image array for the given key, or return nothing if key is not present"""
+        try:
+            shape = tuple(self.store.get(key + '/shape'))
+            image = self.store.get(key + '/data')
+        except KeyError:
+            return None
+        return image.values.reshape(shape)
 
     def save_df(self, key, df, **kwargs):
         if len(df) > 0:
@@ -79,6 +111,10 @@ class HDF5Datastore(Datastore):
 
 def get_readonly_datastore(data_dir, data_file='data.h5'):
     return HDF5Datastore(data_dir, 'r', data_file).store
+
+
+def get_readonly_images(data_dir, data_file='images.h5'):
+    return HDF5Datastore(data_dir, 'r', data_file)
 
 
 class Acquisition(object):
@@ -118,16 +154,43 @@ class Acquisition(object):
         return hashlib.md5(key.encode('utf-8')).hexdigest()
 
 
+SUPPORTED_IMAGE_FIELDS = {
+    'apt_image': {'key_fields': ['acq_id', 'apt_id']},
+    # 'cell_image': {'key_fields': ['acq_id', 'apt_id', 'cell_id']}
+}
+
+
+def get_image_key(image_type, image_field, properties):
+    """Generate key (as string path) used to save images in HDF5 stores
+
+    Args:
+        image_type: Object type (apartment, cell, acqusition, etc.)
+        image_field: Name of image field associated with object (apt_image, raw_norm_image, cell_image, etc.)
+        properties: Any dictionary containing keys used to generate store key (acq_id, apt_id, etc.)
+    Returns:
+        String key path for HDF5 storage
+    """
+    field_meta = SUPPORTED_IMAGE_FIELDS[image_field]
+    keys = [image_type]
+
+    # Add to full key a select set of identifying fields for the image
+    for c in field_meta['key_fields']:
+        keys.append(c + '_' + str(properties[c]))
+    return '/'.join(keys)
+
+
 class Cytometer(object):
 
-    def __init__(self, config, data_dir, data_mode='w'):
+    def __init__(self, config, data_dir, output_mode='w', enable_focus_scores=True):
         self.config = config
         self.model_paths = _resolve_paths(config.get_cytometer_config())
         self.chip_config = config.get_chip_config()
         self.data_dir = data_dir
-        self.data_mode = data_mode
+        self.output_mode = output_mode
+        self.enable_focus_scores = enable_focus_scores
 
         self.datastore = None
+        self.images = None
         self.initialized = False
 
     def initialize(self):
@@ -150,7 +213,12 @@ class Cytometer(object):
         tf_conf = celldom.initialize_keras_session()
 
         # Initialize datastore to maintain results
-        self.datastore = HDF5Datastore(self.data_dir, self.data_mode)
+        self.datastore = HDF5Datastore(self.data_dir, self.output_mode, data_file='data.h5')
+
+        comp_codec, comp_level = image_compression_codec(), image_compression_level()
+        logger.debug('Initializing image storage with codec %s (level = %s)', comp_codec, comp_level)
+        self.images = HDF5Datastore(self.data_dir, self.output_mode,
+                                    data_file='images.h5', complib=comp_codec, complevel=comp_level)
 
         # Initialize predictive models
         self.digit_model = keras.models.load_model(self.model_paths['digit'])
@@ -162,7 +230,10 @@ class Cytometer(object):
             'inference', cell_config.CellInferenceConfig(), tempfile.mkdtemp(),
             init_with='file', file=self.model_paths['cell']
         )
-        self.focus_model = miq.get_classifier(tf_conf)
+        if self.enable_focus_scores:
+            self.focus_model = miq.get_classifier(tf_conf)
+        else:
+            self.focus_model = None
         self.initialized = True
         return self
 
@@ -177,17 +248,25 @@ class Cytometer(object):
         if self.focus_model is not None:
             self.focus_model._sess.close()
 
-        # Close underlying dataset and assume it will never be used again
+        # Close underlying datastores and assume they will never be used again
         if self.datastore is not None:
             self.datastore.close()
+        if self.images is not None:
+            self.images.close()
 
         return True
+
+    def flush(self):
+        if self.datastore is not None:
+            self.datastore.store.flush()
+        if self.images is not None:
+            self.images.store.flush()
 
     def _check_initialized(self):
         if not self.initialized:
             raise ValueError('Cytometer cannot be used until initialized (call `cytometer.initialize` first)')
 
-    def run(self, path, dpf=NO_IMAGES):
+    def run(self, path, dpf=APT_IMAGES):
         """Run cytometry analysis on a single image
 
         Args:
@@ -198,6 +277,7 @@ class Cytometer(object):
                 cytometer = cytometry.Cytometer(experiment_config, output_dir)
                 cytometry.analyze(image_path, dpf=extract.NO_IMAGES)
                 ```
+                Default is `APT_IMAGES` which will only save apartment images extracted from raw images
         Returns:
             (acquisition_data, apartment_data, cell_data) where each is a dataframe containing:
                 - acquisition_data: Information about the original acquisition image (like rotation, marker locations)
@@ -207,7 +287,7 @@ class Cytometer(object):
         """
         return self.analyze(Acquisition(self.config, path), dpf=dpf)
 
-    def analyze(self, acquisition, dpf=NO_IMAGES):
+    def analyze(self, acquisition, dpf=APT_IMAGES):
         """Run cytometry analysis on a single acquisition
 
         Args:
@@ -219,6 +299,7 @@ class Cytometer(object):
                 acquisition = cytometry.Acquisition(experiment_config, image_path)
                 cytometry.analyze(acquisition, dpf=extract.NO_IMAGES)
                 ```
+                Default is `APT_IMAGES` which will only save apartment images extracted from raw images
         Returns:
             (acquisition_data, apartment_data, cell_data) where each is a dataframe containing:
                 - acquisition_data: Information about the original acquisition image (like rotation, marker locations)
@@ -242,10 +323,9 @@ class Cytometer(object):
         properties['processed_at'] = pd.to_datetime('now')
 
         # Extract all relevant information
-        partitions, norm_image, norm_centers, neighbors, rotation, scale = apartment_extraction.extract(
+        partitions, norm_image, norm_centers, neighbors, rotation = apartment_extraction.extract(
             image, self.marker_model, self.chip_config,
-            digit_model=self.digit_model, cell_model=self.cell_model, focus_model=self.focus_model,
-            chip_scaling=False, dpf=dpf
+            digit_model=self.digit_model, cell_model=self.cell_model, focus_model=self.focus_model, dpf=dpf
         )
 
         acq_data = pd.DataFrame([dict(
@@ -254,14 +334,14 @@ class Cytometer(object):
             raw_image_shape_width=image.shape[1],
             raw_norm_image=norm_image if dpf.raw_norm_image else None,
             apt_count=len(partitions),
-            rotation=rotation,
-            scale=scale
+            rotation=rotation
         )])
 
         # Extract a data frame with rows representing each cell
         # Note: If you don't keep empty data frames out of the list to concatenate,
         # it messes up the data types of results
-        cell_data = pd.concat([self._prepare_cells(r) for r in partitions if len(r['cells']) > 0])
+        cell_data = [self._prepare_cells(r) for r in partitions if len(r['cells']) > 0]
+        cell_data = pd.concat(cell_data) if cell_data else pd.DataFrame()
 
         # Compute cell stats at apartment level and drop cells field
         apt_data = pd.DataFrame([self._prepare_apt(r, dpf) for r in partitions])
@@ -295,10 +375,23 @@ class Cytometer(object):
         return r.drop('cells')
 
     def save(self, acq_data, apt_data, cell_data):
-        self._save('table_acquisition', acq_data)
-        self._save('table_apartment', apt_data)
-        self._save('table_cell', cell_data)
+        for table, df in [
+            ('acquisition', acq_data),
+            ('apartment', apt_data),
+            ('cell', cell_data)
+        ]:
+            if df is not None and len(df) > 0:
+                self._save(table, df)
         return self
+
+    def _save_images(self, key, df, image_field):
+        field_meta = SUPPORTED_IMAGE_FIELDS[image_field]
+        cols = field_meta['key_fields'] + [image_field]
+        for i, r in df[cols].iterrows():
+            image = r[image_field]
+            if image is None:
+                continue
+            self.images.save_image(get_image_key(key, image_field, r), image)
 
     def _save(self, key, df):
         d = df.copy()
@@ -307,15 +400,18 @@ class Cytometer(object):
         col_sizes = {}
         object_cols = d.select_dtypes('object').columns.values
         for c in object_cols:
-            # Drop image fields and move on
+
+            # Save supported image fields in separate datastore
             if _is_image_field(c):
+                if c in SUPPORTED_IMAGE_FIELDS:
+                    self._save_images(key, d, c)
                 d = d.drop(c, axis=1)
                 continue
 
-            # Make a hacky string size exception for file paths (which are much longer)
+            # Make a string size exception for file paths (which are much longer)
             # and ids (which are fixed size)
-            if c == 'raw_image_path':
-                col_sizes[c] = 256
+            if _is_path_field(c):
+                col_sizes[c] = PATH_STRING_SIZE
             elif c == ACQ_PROP_PREFIX + 'id':
                 col_sizes[c] = 32  # These are md5s
             else:
@@ -341,7 +437,11 @@ def _assign_properties(d, prefix, properties):
 
 
 def _is_image_field(field):
-    return field.endswith('image') or field.endswith('images')
+    return field.endswith('_image') or field.endswith('_images')
+
+
+def _is_path_field(field):
+    return field.endswith('_path')
 
 
 def _get_image_fields(fields, dpf):

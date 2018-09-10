@@ -62,11 +62,15 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
         centroid = props.centroid
 
         cells.append(dict(
+            cell_id=i,
             cell_image=props.intensity_image if dpf.cell_image else None,
-            roi_ymin=int(cell_rois[i][0]),
-            roi_xmin=int(cell_rois[i][1]),
-            roi_ymax=int(cell_rois[i][2]),
-            roi_xmax=int(cell_rois[i][3]),
+            # bbox format is min_row, min_col, max_row, max_col
+            # - see http://scikit-image.org/docs/dev/api/skimage.measure.html#skimage.measure.regionprops
+            # - use bbox instead of roi since they are not entirely identical
+            roi_ymin=props.bbox[0],
+            roi_xmin=props.bbox[1],
+            roi_ymax=props.bbox[2],
+            roi_xmax=props.bbox[3],
             score=cell_scores[i],
             area=props.area,
             eccentricity=props.eccentricity,

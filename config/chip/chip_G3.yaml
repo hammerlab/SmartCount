@@ -1,3 +1,4 @@
+# All units are pixel distance at 10x (have to downsample 16x images first before measuring)
 apt_margins: {bottom: 68, left: -192, right: 43, top: -156}
 apt_num_digit_bounds:
 - [0, 27]
@@ -21,4 +22,7 @@ st_num_digit_bounds:
 - [21, 50]
 st_num_digit_count: 2
 st_num_margins: {bottom: 8, left: -188, right: -138, top: -34}
-target_scale_factor: 254.16
+marker_spacing: {horizontal: 260, vertical: 198}
+# Min/max address ranges on chip
+apt_num_range: [0, 56]
+st_num_range: [0, 15]

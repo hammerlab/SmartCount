@@ -1,6 +1,6 @@
 name: G3 Test Experiment
 chip: {name: chip_G3}
-cytometer: {name: cytometer_01}
+cytometer: {name: cytometer_02}
 acquisition:
   magnification: 16
   reflection: false
