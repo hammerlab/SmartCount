@@ -24,6 +24,7 @@ app = dash.Dash()
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 cfg = config.get()
 
+PAGE_NAMES = ['summary', 'apartments', 'arrays']
 GRAPH_GROWTH_DATA_MARGINS = {'l': 50, 'r': 20, 't': 40, 'b': 80}
 
 # app.scripts.config.serve_locally = True
@@ -102,6 +103,7 @@ def get_page_apartments():
 
     # TODO: Apply filters on first_count and elapsed_hours_min
     return [
+        html.Div(id='table-info-apartments', style={'float': 'right'}),
         html.Details([
                 html.Summary('Apartment Data', style={'font-size': '18'}),
                 html.Div([
@@ -191,6 +193,7 @@ def get_page_apartments():
 def get_page_arrays():
     df = get_array_data()
     return [
+        html.Div(id='table-info-arrays', style={'float': 'right'}),
         html.Details([
             html.Summary('Array Data', style={'font-size': '18'}),
             html.Div([
@@ -208,7 +211,7 @@ def get_page_arrays():
                 sortable=True,
                 selected_row_indices=[],
                 max_rows_in_viewport=cfg.max_table_rows,
-                id='table-array-data'
+                id='table-arrays-data'
             )
         ]),
         html.Div([
@@ -263,6 +266,7 @@ def get_summary_acquisition_layout():
     df = pd.concat([df_acq, df_grd], axis=1).reset_index()
 
     return [
+        html.Div(id='table-info-summary', style={'float': 'right'}),
         html.Details([
             html.Summary('Summary Data', style={'font-size': '18'}),
             html.Div([
@@ -284,7 +288,7 @@ def get_summary_acquisition_layout():
                 )
             ])
         ]),
-        html.Div(
+        html.Div([
             dt.DataTable(
                 rows=df.to_dict('records'),
                 columns=df.columns.tolist(),
@@ -296,7 +300,7 @@ def get_summary_acquisition_layout():
                 max_rows_in_viewport=cfg.max_table_rows,
                 id='table-summary-data'
             )
-        )
+        ])
     ]
 
 
@@ -329,9 +333,6 @@ def get_selected_button_index(click_timestamps):
     return np.argmax([(ts or 0) for ts in click_timestamps])
 
 
-PAGE_NAMES = ['summary', 'apartments', 'arrays']
-
-
 def add_page_callback(page_name, page_index):
     @app.callback(
         Output('page-' + page_name, 'style'),
@@ -360,6 +361,21 @@ for page_name in PAGE_NAMES:
         else:
             style['color'] = 'white'
         return style
+
+
+def add_table_info_callback(page_name):
+    @app.callback(
+        Output('table-info-' + page_name, 'children'),
+        [Input('table-' + page_name + '-data', 'rows')]
+    )
+    def update_table_info(rows):
+        if rows is None:
+            return None
+        return 'Number of rows: {}'.format(len(rows))
+
+
+for page_name in PAGE_NAMES:
+    add_table_info_callback(page_name)
 
 
 def get_selected_growth_data(rows, selected_row_indices):
@@ -553,7 +569,7 @@ def update_summary_distribution_graph(selected_row_indices, rows):
 
 @app.callback(
     Output('array-dropdown', 'options'),
-    [Input('table-array-data', 'selected_row_indices'), Input('table-array-data', 'rows')]
+    [Input('table-arrays-data', 'selected_row_indices'), Input('table-arrays-data', 'rows')]
 )
 def update_array_dropdown_options(selected_row_indices, rows):
     if not selected_row_indices or not rows:
