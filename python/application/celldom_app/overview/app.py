@@ -436,7 +436,7 @@ def update_apartment_animations(selected_apartment, selected_row_indices, rows):
         return []
 
     # Pass one-row data frame to image data processor
-    df = data.get_apartment_image_data(df.loc[mask])
+    df = data.get_apartment_image_data(df.loc[list(mask.values)])
     if selected_apartment not in df.index:
         logger.error('Apartment image data does not contain apartment %s', selected_apartment)
     r = df.loc[selected_apartment]

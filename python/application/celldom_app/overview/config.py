@@ -9,6 +9,7 @@ ENV_APP_HOST_IP = 'APP_HOST_IP'
 ENV_APP_APT_IMG_HEIGHT_PX = 'APP_APT_IMG_HEIGHT_PX'
 ENV_APP_APT_IMG_TMPDIR = 'APP_APT_IMG_TMPDIR'
 ENV_APP_MIN_MEASUREMENT_GAP_SECS = 'APP_APP_MIN_MEASUREMENT_GAP_SECS'
+ENV_APP_REMOVE_OOB_ADDRESS = 'APP_REMOVE_OOB_ADDRESS'
 
 DEFAULT_APP_HOST_IP = '0.0.0.0'
 DEFAULT_APP_PORT = 8050
@@ -58,6 +59,10 @@ class AppConfig(object):
     @property
     def min_measurement_gap_seconds(self):
         return int(os.getenv(ENV_APP_MIN_MEASUREMENT_GAP_SECS, DEFAULT_APP_MIN_MEASUREMENT_GAP_SECS))
+
+    @property
+    def remove_oob_address(self):
+        return os.getenv(ENV_APP_REMOVE_OOB_ADDRESS, '').lower() != 'false'
 
 
 def initialize(exp_config_path):
