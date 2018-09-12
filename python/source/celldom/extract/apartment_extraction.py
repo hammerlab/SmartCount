@@ -117,7 +117,7 @@ def partition_chip(img, centers, chip_config, focus_model=None):
 def extract(
         image, marker_model, chip_config,
         digit_model=None, cell_model=None, focus_model=None,
-        dpf=NO_IMAGES, angle_tolerance=25, distance_tolerance=20):
+        dpf=NO_IMAGES, angle_tolerance=10, distance_tolerance=20):
 
     # Make sure provided image is RGB
     assert_rgb(image)

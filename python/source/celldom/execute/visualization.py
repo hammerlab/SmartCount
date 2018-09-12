@@ -87,7 +87,7 @@ def process_results(apt_data, cell_data, exp_cond_fields, cell_marker_color):
 
         # Get cell data for this apartment (if it exists, which it may not if there
         # really are 0 cells present)
-        cdf = cell_data.loc[i] if i in cell_data.index else pd.DataFrame()
+        cdf = cell_data.loc[[i]] if i in cell_data.index else pd.DataFrame()
 
         if len(cdf) > 0 and cdf[['centroid_x', 'centroid_y']].isnull().any().any():
             raise AssertionError(
