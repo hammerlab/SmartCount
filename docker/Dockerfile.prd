@@ -62,7 +62,9 @@ ENV PYTHONWARNINGS "ignore::FutureWarning:h5py"
 
 WORKDIR "$LAB_DIR"
 
-# Create link to celldom CLI executable on launch since it comes from local repo
-CMD chmod a+x $CELLDOM_REPO_DIR/python/source/celldom/cli/celldom_cli.py && \
+# Create link to celldom CLI executable on launch since it comes from local repo (also
+# update any repos that aren't pip installed)
+CMD git -C $CVUTILS_REPO_DIR pull origin master && \
+    chmod a+x $CELLDOM_REPO_DIR/python/source/celldom/cli/celldom_cli.py && \
     ln -s $CELLDOM_REPO_DIR/python/source/celldom/cli/celldom_cli.py /usr/local/bin/celldom && \
     jupyter lab --allow-root
