@@ -44,6 +44,9 @@ RUN pip install dash==0.21.1  \
     dash-table-experiments==0.6.0 \
     plotly
 
+# Install weights and biases in dev mode only
+RUN pip install wandb
+
 # Set useful development environment variables (override on run if necessary)
 ENV CELLDOM_REPO_DIR $CELLDOM_REPO_DIR
 ENV CELLDOM_DATA_DIR $CELLDOM_DATA_DIR
