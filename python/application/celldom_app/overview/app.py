@@ -14,6 +14,7 @@ import logging
 import glob
 from celldom_app.overview import data
 from celldom_app.overview import config
+from celldom_app.overview import lib
 from celldom_app.overview import utils as app_utils
 
 logging.basicConfig(level=os.getenv('LOGLEVEL', 'INFO'))
@@ -190,6 +191,13 @@ def get_page_apartments():
     ]
 
 
+ARRAY_METRICS = [
+    {'label': 'Number of Measurements', 'value': 'measurement_count'},
+    {'label': 'Cell Count', 'value': 'cell_count'},
+    {'label': 'Growth Rate (24hr log2)', 'value': 'growth_rate'}
+]
+
+
 def get_page_arrays():
     df = get_array_data()
     return [
@@ -226,15 +234,22 @@ def get_page_arrays():
                     dcc.Dropdown(
                         id='array-metric-dropdown',
                         placeholder='Choose metric to view data for',
-                        options=[
-                            # {'label': 'Number of Measurements', 'value': 'measurement_count'},
-                            {'label': 'Cell Count Over Time', 'value': 'cell_count'},
-                            # {'label': 'Growth Rate', 'value': 'growth_rate'}
-                        ],
+                        options=ARRAY_METRICS,
                         value='cell_count'
                     ),
                     className='three columns',
                     style={'margin-left': '0'}
+                ),
+                html.Div(
+                    dcc.Checklist(
+                        options=[
+                            {'label': 'Normalize Across Time Steps', 'value': 'normalize'}
+                        ],
+                        values=['normalize'],
+                        id='enable-array-normalize',
+                        style={'float': 'right'}
+                    ),
+                    className='six columns'
                 )
             ],
             className='row'
@@ -583,70 +598,76 @@ def update_array_dropdown_options(selected_row_indices, rows):
     return options
 
 
+def _get_metric_label(metric_value):
+    for m in ARRAY_METRICS:
+        if m['value'] == metric_value:
+            return m['label']
+    return metric_value
+
+
 @app.callback(
     Output('graph-array-data', 'figure'),
     [
         Input('array-dropdown', 'value'),
-        Input('array-metric-dropdown', 'value')
+        Input('array-metric-dropdown', 'value'),
+        Input('enable-array-normalize', 'values')
     ]
 )
-def update_array_graph(array, metric):
+def update_array_graph(array, metric, enable_normalize):
     if not array or not metric:
         return dict(data=[], layout={})
 
-    # Subset data to selected array TODO: choose data based on metric
-    df = data.get_apartment_data()
-    df = df.set_index(data.get_array_key_fields()).loc[tuple(array.split(':'))]
+    metric_label = _get_metric_label(metric)
+    title = '{}<br><i>{}</i>'.format(metric_label, array)
 
-    if len(df) == 0:
-        return dict(data=[], layout={})
-    df = df.copy()
+    def prep(d):
+        array_key = tuple(array.split(':'))
+        return d.set_index(data.get_array_key_fields()).loc[array_key].copy()
 
-    date_map = app_utils.group_dates(df['acq_datetime'], min_gap_seconds=cfg.min_measurement_gap_seconds)
-    df['acq_datetime_group'] = df['acq_datetime'].map(date_map)
+    if metric in ['cell_count', 'measurement_count']:
+        # Subset data to selected array TODO: choose data based on metric
+        df = data.get_apartment_data()
+        df = prep(df)
+        if len(df) == 0:
+            return dict(data=[], layout={})
+        date_map = app_utils.group_dates(df['acq_datetime'], min_gap_seconds=cfg.min_measurement_gap_seconds)
+        df['acq_datetime_group'] = df['acq_datetime'].map(date_map)
+        df['elapsed_hours_group'] = df['acq_datetime_group'].map(
+            df.groupby('acq_datetime_group')['elapsed_hours'].min())
+        df['measurement_count'] = 1
 
-    fig_data = []
-    val_range = df['cell_count'].min(), df['cell_count'].max()
-    for i, (k, g) in enumerate(df.groupby('acq_datetime_group')):
-        ct = g.groupby(['st_num', 'apt_num'])['cell_count'].median().unstack().fillna(-1)
-        fig_data.append(dict(
-            visible=False,
-            y=['st {}'.format(v) for v in ct.index],
-            x=['apt {}'.format(v) for v in ct.columns],
-            z=ct.values,
-            zmin=val_range[0],
-            zmax=val_range[1],
-            type='heatmap',
-            colorscale='Portland',
-            name=k
-        ))
+        if metric == 'cell_count':
+            agg_func, fill_value, value_range = np.median, -1, None
+        else:
+            agg_func, fill_value, value_range = np.sum, 0, (0, 5)
 
-    # See: https://plot.ly/python/reference/#layout-updatemenus
-    steps = []
-    for i in range(len(fig_data)):
-        step = dict(
-            method='restyle',
-            args=['visible', [False] * len(fig_data)],
-            label=fig_data[i]['name']
+        fig = lib.get_array_graph_figure(
+            df, metric, enable_normalize,
+            date_field='acq_datetime_group', elapsed_field='elapsed_hours_group',
+            fill_value=fill_value, agg_func=agg_func, value_range=value_range
         )
-        step['args'][1][i] = True
-        steps.append(step)
+        fig['layout']['title'] = title
+        return fig
+    elif metric == 'growth_rate':
+        df = data.get_growth_data()
+        df = prep(df)
+        if len(df) == 0:
+            return dict(data=[], layout={})
 
-    fig_data[0]['visible'] = True
+        def agg_func(v):
+            if len(v) > 1:
+                return np.nan
+            return v[0]
 
-    sliders = [dict(
-        active=0,
-        currentvalue={"prefix": "Date: "},
-        pad={"t": 75},
-        steps=steps
-    )]
-
-    fig_layout = dict(title=array, sliders=sliders, margin=dict(b=50, t=50))
-
-    return dict(data=fig_data, layout=fig_layout)
+        fig = lib.get_array_graph_figure(
+            df, 'growth_rate', enable_normalize,
+            fill_value=None, agg_func=agg_func
+        )
+        fig['layout']['title'] = title
+        return fig
+    else:
+        raise NotImplementedError('Metric "{}" not yet supported'.format(metric))
 
 
 def run_server():
     app.run_server(debug=True, port=cfg.app_port, host=cfg.app_host_ip)
-
-# celldom run_overview_app /lab/repos/celldom/config/experiment/experiment_example_G3.yaml /lab/data/celldom/output/20180820-G3-full

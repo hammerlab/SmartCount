@@ -123,6 +123,12 @@ def _clean(df):
     return df
 
 
+def _prep(df):
+    """Add or transform any globally available fields"""
+    df['elapsed_hours'] = analysis.get_experiment_elapsed_hours(df, cfg.experimental_condition_fields)
+    return df
+
+
 def initialize(data_dir):
     global cfg
     global image_store
@@ -143,13 +149,13 @@ def initialize(data_dir):
             store = cytometry.get_readonly_datastore(data_dir)
             if cfg.remove_oob_address:
                 logger.info('Loading experiment data with OOB apartment addresses removed')
-                cache[KEY_CELL_DATA] = _clean(store.get('cell'))
-                cache[KEY_APT_DATA] = _clean(store.get('apartment'))
+                cache[KEY_CELL_DATA] = _prep(_clean(store.get('cell')))
+                cache[KEY_APT_DATA] = _prep(_clean(store.get('apartment')))
             else:
                 logger.info('Loading experiment data without removing OOB apartment addresses')
-                cache[KEY_CELL_DATA] = store.get('cell')
-                cache[KEY_APT_DATA] = store.get('apartment')
-            cache[KEY_ACQ_DATA] = store.get('acquisition')
+                cache[KEY_CELL_DATA] = _prep(store.get('cell'))
+                cache[KEY_APT_DATA] = _prep(store.get('apartment'))
+            cache[KEY_ACQ_DATA] = _prep(store.get('acquisition'))
             break
         except (AttributeError, HDF5ExtError):
             ct += 1

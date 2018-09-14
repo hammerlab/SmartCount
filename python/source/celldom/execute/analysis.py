@@ -10,11 +10,27 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None, start_of_experiment=None):
+def get_experiment_start_dates(apt_data, exp_cond_fields):
+    return apt_data.groupby(exp_cond_fields)['acq_datetime'].min().rename('experiment_start_date')
 
-    df = apt_data
 
-    # If cell data was provided, replace apartment counts with the data provided
+def get_experiment_elapsed_hours(apt_data, exp_cond_fields):
+    # Get group -> min date index
+    exp_start_dates = get_experiment_start_dates(apt_data, exp_cond_fields)
+
+    # Map min dates to given data frame, giving a N [= len(apt_data)] vector of start dates
+    exp_start_dates = apt_data.set_index(exp_cond_fields).index.to_series().map(exp_start_dates)
+
+    # Return computed time since beginning of experiment
+    return (apt_data['acq_datetime'].values - exp_start_dates.values) / np.timedelta64(1, 'h')
+
+
+def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None):
+
+    df = apt_data.copy()
+
+    # If cell data was provided, replace apartment counts with the data provided (the cell data may have been
+    # filtered in a way that should be reflected in apartment cell counts)
     if cell_data is not None:
 
         # Group by original image id, id of apartment within that image, and time to compute new cell count
@@ -30,15 +46,7 @@ def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None, start_of_exp
         df = df[df['cell_count'].notnull()].drop('original_cell_count', axis=1)
 
     # Infer experiment start dates if not given, based on earliest timestamps in data
-    if start_of_experiment is None:
-        dfdt = df.groupby(exp_cond_fields)['acq_datetime'].min().rename('min_date')
-        exp_start_dates = df.set_index(exp_cond_fields).index.to_series().map(dfdt)
-    # Otherwise, assume the given date is specific to all experimental conditions
-    else:
-        exp_start_dates = pd.Series([pd.to_datetime(start_of_experiment)])
-
-    # Compute elapsed time since beginning of experiment
-    df['elapsed_hours'] = (df['acq_datetime'].values - exp_start_dates.values) / np.timedelta64(1, 'h')
+    df['elapsed_hours'] = get_experiment_elapsed_hours(df, exp_cond_fields)
 
     # Regroup by apartment + time and compute median cell count across all measurements in time
     # (and retain sets of unique acquisition ids as this is very helpful for tracing data back to images)
