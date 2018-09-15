@@ -43,7 +43,7 @@ def get_array_graph_figure(df, metric, enable_normalize, value_range=None, agg_f
     if len(fig_data) > 0:
         fig_data[0]['visible'] = True
 
-    fig_layout = dict(margin=dict(b=60, t=50))
+    fig_layout = dict(margin=dict(b=60, t=53))
 
     # Add sliders for heatmaps available over time, if possible
     if date_field is not None and len(fig_data) > 0:

@@ -173,9 +173,23 @@ def get_page_apartments():
                     style={'margin-top': '10px'}
                 ),
                 html.Div([
-                        dcc.Dropdown(
-                            id='apartment-dropdown',
-                            placeholder='Choose apartment to view images for (must be selected in table first)'
+                        html.Div(
+                            dcc.Dropdown(
+                                id='apartment-dropdown',
+                                placeholder='Choose apartment (must be selected in table first)'
+                            ),
+                            style={'display': 'inline-block', 'width': '75%'}
+                        ),
+                        html.Div(
+                            dcc.Checklist(
+                                options=[{'label': 'Show Cell Markers', 'value': 'enabled'}],
+                                values=['enabled'],
+                                id='enable-cell-marker'
+                            ),
+                            style={
+                                'display': 'inline-block', 'width': '25%',
+                                'vertical-align': 'top', 'padding-top': '4px'
+                            }
                         ),
                         html.Div(
                             id='apartment-animation',
@@ -183,7 +197,7 @@ def get_page_apartments():
                         )
                     ],
                     className='five columns',
-                    style={'margin-top': '10px'}
+                    style={'margin-top': '0'}
                 )
             ],
             className='row'
@@ -205,7 +219,20 @@ def get_page_arrays():
         html.Details([
             html.Summary('Array Data', style={'font-size': '18'}),
             html.Div([
-                dcc.Markdown('TBD')
+                dcc.Markdown(
+                    'Each row of this table corresponds to an individual array and can be selected to produce '
+                    'heatmaps of various metrics over the array\'s individual apartments'
+                    '\n\n**Field Definitions**\n'
+                    '- {}: Experimental conditions\n'
+                    '- **num_apartments**: Number of distinct apartments for which data was collected '
+                    '(should be close to number of streets times number of apartment addresses)\n'
+                    '- **median_growth_rate**: Median growth rate across all apartments in the array\n'
+                    '- **first_date**: Earliest date associated with a measurement of any apartment in the array\n'
+                    '- **last_date**: Latest date associated with a measurement of any apartment in the array\n'
+                    .format(
+                        ', '.join(['**{}**'.format(f) for f in cfg.experimental_condition_fields])
+                    )
+                )
             ])
         ]
         ),
@@ -226,7 +253,7 @@ def get_page_arrays():
                 html.Div(
                     dcc.Dropdown(
                         id='array-dropdown',
-                        placeholder='Choose array to view data for (must be selected in table first)'
+                        placeholder='Choose array (must be selected in table first)'
                     ),
                     className='three columns'
                 ),
@@ -235,7 +262,9 @@ def get_page_arrays():
                         id='array-metric-dropdown',
                         placeholder='Choose metric to view data for',
                         options=ARRAY_METRICS,
-                        value='cell_count'
+                        value='cell_count',
+                        clearable=False,
+                        searchable=False
                     ),
                     className='three columns',
                     style={'margin-left': '0'}
@@ -243,26 +272,26 @@ def get_page_arrays():
                 html.Div(
                     dcc.Checklist(
                         options=[
-                            {'label': 'Normalize Across Time Steps', 'value': 'normalize'}
+                            {'label': 'Normalize Across Time Steps', 'value': 'enabled'}
                         ],
-                        values=['normalize'],
-                        id='enable-array-normalize',
-                        style={'float': 'right'}
+                        values=['enabled'],
+                        id='enable-array-normalize'
                     ),
-                    className='six columns'
+                    className='six columns',
+                    style={'margin-left': '0', 'padding-top': '4px'}
                 )
             ],
-            className='row'
+            className='row',
+            style={'margin-top': '0'}
         ),
-        html.Div([
-                dcc.Graph(id='graph-array-data')
-            ],
+        html.Div(
+            dcc.Graph(id='graph-array-data'),
             className='row'
         ),
     ]
 
 
-def get_summary_acquisition_layout():
+def get_page_summary():
     df_acq = get_acquisition_data()
     df_grd = get_apartment_data()
     n_raw_files = len(df_acq)
@@ -273,9 +302,9 @@ def get_summary_acquisition_layout():
     # Compute mean growth rate and apartment count by experimental condition
     df_grd = (
         df_grd.assign(address=df_grd['apt_num'].str.cat(df_grd['st_num'], sep=':'))
-        .groupby(cfg.experimental_condition_fields)
-        .agg({'address': 'nunique', 'growth_rate': 'median'})
-        .rename(columns={'address': 'num_apartments', 'growth_rate': 'median_growth_rate'})
+            .groupby(cfg.experimental_condition_fields)
+            .agg({'address': 'nunique', 'growth_rate': 'median'})
+            .rename(columns={'address': 'num_apartments', 'growth_rate': 'median_growth_rate'})
     )
 
     df = pd.concat([df_acq, df_grd], axis=1).reset_index()
@@ -315,14 +344,51 @@ def get_summary_acquisition_layout():
                 max_rows_in_viewport=cfg.max_table_rows,
                 id='table-summary-data'
             )
-        ])
-    ]
-
-
-def get_page_summary():
-    return [
-        html.Div(get_summary_acquisition_layout()),
-        dcc.Graph(id='graph-summary-distributions')
+        ]),
+        html.Div([
+                html.Div(
+                    'Distribution Grouping Fields:',
+                    className='two columns',
+                    style={'text-align': 'right', 'margin-top': '6px'}
+                ),
+                html.Div(
+                    dcc.Dropdown(
+                        options=[
+                            {'label': f, 'value': f}
+                            for f in cfg.experimental_condition_fields
+                        ],
+                        multi=True,
+                        value=cfg.experimental_condition_fields,
+                        clearable=False,
+                        searchable=False,
+                        id='summary-distribution-grouping'
+                    ),
+                    className='six columns',
+                    style={'margin-left': '10px'}
+                ),
+                html.Div(
+                    dcc.Dropdown(
+                        options=[
+                            {'label': 'Box', 'value': 'box'},
+                            {'label': 'Histogram', 'value': 'hist'}
+                        ],
+                        placeholder='Plot Type',
+                        multi=False,
+                        clearable=True,
+                        searchable=False,
+                        id='summary-distribution-plot-type'
+                    ),
+                    className='two columns',
+                    style={'margin-left': '0'}
+                )
+            ],
+            className='row',
+            style={'margin-top': '0'}
+        ),
+        html.Div(
+            dcc.Graph(id='graph-summary-distributions'),
+            className='row'
+        )
     ]
 
 
@@ -432,10 +498,10 @@ def update_apartment_dropdown_options(selected_row_indices, rows):
 
 @app.callback(
     Output('apartment-animation', 'children'),
-    [Input('apartment-dropdown', 'value')],
+    [Input('apartment-dropdown', 'value'), Input('enable-cell-marker', 'values')],
     [State('table-apartments-data', 'selected_row_indices'), State('table-apartments-data', 'rows')]
 )
-def update_apartment_animations(selected_apartment, selected_row_indices, rows):
+def update_apartment_animations(selected_apartment, show_cell_marker, selected_row_indices, rows):
     if not selected_row_indices or not rows or not selected_apartment:
         return None
     # Get growth data for all selected apartments (in table)
@@ -451,7 +517,10 @@ def update_apartment_animations(selected_apartment, selected_row_indices, rows):
         return []
 
     # Pass one-row data frame to image data processor
-    df = data.get_apartment_image_data(df.loc[list(mask.values)])
+    df = data.get_apartment_image_data(
+        df.loc[list(mask.values)],
+        marker_color=data.visualization.COLOR_RED if show_cell_marker else None
+    )
     if selected_apartment not in df.index:
         logger.error('Apartment image data does not contain apartment %s', selected_apartment)
     r = df.loc[selected_apartment]
@@ -532,25 +601,35 @@ def update_growth_table_selected_rows(click_data, array, selected_row_indices, r
 
 @app.callback(
     Output('graph-summary-distributions', 'figure'),
-    [Input('table-summary-data', 'selected_row_indices'), Input('table-summary-data', 'rows')]
+    [
+        Input('table-summary-data', 'selected_row_indices'),
+        Input('table-summary-data', 'rows'),
+        Input('summary-distribution-grouping', 'value'),
+        Input('summary-distribution-plot-type', 'value')
+    ]
 )
-def update_summary_distribution_graph(selected_row_indices, rows):
-    if not selected_row_indices or not rows:
+def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_type):
+    if not selected_row_indices or not rows or not fields:
         return {
             'data': [],
             'layout': {'title': 'Growth Rate Distributions'}
         }
 
-    # Determine keys corresponding to selected experimental conditions
-    keys = pd.DataFrame(rows).iloc[selected_row_indices].set_index(cfg.experimental_condition_fields).index
+    # Determine keys corresponding to selected grouping fields (`fields` was initially
+    # cfg.experimental_condition_fields but can be dynamic in this context)
+    keys = pd.DataFrame(rows).iloc[selected_row_indices].set_index(fields).index.unique()
 
     # Subset growth data to only experimental conditions selected
     df = get_apartment_data()
-    df = df.set_index(cfg.experimental_condition_fields).loc[keys]
+    df = df.set_index(fields).loc[keys]
 
-    # Determine whether or not enough groups of experimental conditions were selected
+    # Use given plot type if possible
+    if plot_type is not None:
+        enable_boxplot = plot_type == 'box'
+    # Otherwise, determine whether or not enough groups were selected
     # such that a boxplot is more useful than a large number of histograms
-    enable_boxplot = len(keys) > cfg.summary_n_group_treshold
+    else:
+        enable_boxplot = len(keys) > cfg.summary_n_group_treshold
 
     fig_data = []
     fig_layout = {'title': 'Growth Rate Distributions'}
@@ -559,11 +638,12 @@ def update_summary_distribution_graph(selected_row_indices, rows):
     groups = df.groupby(df.index)
     keys = groups['growth_rate'].median().sort_values().index
     for k in keys:
+        name = k if isinstance(k, str) else ':'.join(k)
         g = groups.get_group(k)
         if enable_boxplot:
             fig_data.append({
                 'x': g['growth_rate'].clip(*cfg.growth_rate_range),
-                'name': ':'.join(k),
+                'name': name,
                 'type': 'box'
             })
             fig_layout['xaxis'] = {'title': '24hr Growth Rate (log2)'}
@@ -571,7 +651,7 @@ def update_summary_distribution_graph(selected_row_indices, rows):
         else:
             fig_data.append({
                 'x': g['growth_rate'].clip(*cfg.growth_rate_range),
-                'name': ':'.join(k),
+                'name': name,
                 'type': 'histogram',
                 'xbins': {'start': cfg.growth_rate_range[0], 'end': cfg.growth_rate_range[1], 'size': .05},
                 'opacity': .3
