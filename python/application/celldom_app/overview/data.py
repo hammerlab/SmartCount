@@ -189,14 +189,26 @@ def initialize(data_dir):
     if KEY_ARRAY_DATA not in cache:
         logger.info('Computing array summary data')
         df = cache[KEY_GROWTH_DATA]
-        df = df.groupby(cfg.experimental_condition_fields).size().rename('num_apartments').reset_index()
+        df = df.groupby(cfg.experimental_condition_fields).agg({
+                'growth_rate': ['count', 'median'],
+                'first_date': 'min',
+                'last_date': 'max'
+            })
+        df.columns = [':'.join(c) for c in df]
+        df = df.rename(columns={
+            'growth_rate:count': 'num_apartments',
+            'growth_rate:median': 'median_growth_rate',
+            'first_date:min': 'first_date',
+            'last_date:max': 'last_date'
+        })
+        df = df.reset_index()
         cache[KEY_ARRAY_DATA] = df
 
     # Save any cached objects that haven't already been saved
     save(overwrite=False)
 
 
-def get_apartment_image_data(df):
+def get_apartment_image_data(df, marker_color=visualization.COLOR_RED):
     key_fields = get_apartment_key_fields()
 
     # Index growth data and use unique index values to subset other datasets
@@ -221,9 +233,7 @@ def get_apartment_image_data(df):
     apt_data['apt_image'] = images
     apt_data = apt_data[apt_data['apt_image'].notnull()]
 
-    image_data = visualization.process_results(
-        apt_data, cell_data, cfg.experimental_condition_fields, visualization.COLOR_RED
-    )
+    image_data = visualization.process_results(apt_data, cell_data, cfg.experimental_condition_fields, marker_color)
 
     res = []
     for k, g in image_data.groupby(key_fields):
