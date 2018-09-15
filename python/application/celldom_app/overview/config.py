@@ -41,10 +41,6 @@ class AppConfig(object):
         return os.getenv(ENV_APP_APT_IMG_HEIGHT_PX, DEFAULT_APP_APT_IMG_HEIGHT_PX) + 'px'
 
     @property
-    def summary_n_group_treshold(self):
-        return 4
-
-    @property
     def growth_rate_range(self):
         return [-2, 2]
 

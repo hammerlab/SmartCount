@@ -293,21 +293,17 @@ def get_page_arrays():
 
 def get_page_summary():
     df_acq = get_acquisition_data()
-    df_grd = get_apartment_data()
+    df_arr = get_array_data()
     n_raw_files = len(df_acq)
 
     # Count raw files processed for each experimental condition
     df_acq = df_acq.groupby(cfg.experimental_condition_fields).size().rename('num_raw_images')
 
-    # Compute mean growth rate and apartment count by experimental condition
-    df_grd = (
-        df_grd.assign(address=df_grd['apt_num'].str.cat(df_grd['st_num'], sep=':'))
-            .groupby(cfg.experimental_condition_fields)
-            .agg({'address': 'nunique', 'growth_rate': 'median'})
-            .rename(columns={'address': 'num_apartments', 'growth_rate': 'median_growth_rate'})
-    )
+    # Select fields from array data
+    df_arr = df_arr.set_index(cfg.experimental_condition_fields)[['median_growth_rate', 'num_apartments']]
 
-    df = pd.concat([df_acq, df_grd], axis=1).reset_index()
+    # Merge acquisition summary and array data
+    df = pd.concat([df_acq, df_arr], axis=1).reset_index()
 
     return [
         html.Div(id='table-info-summary', style={'float': 'right'}),
@@ -370,7 +366,8 @@ def get_page_summary():
                     dcc.Dropdown(
                         options=[
                             {'label': 'Box', 'value': 'box'},
-                            {'label': 'Histogram', 'value': 'hist'}
+                            {'label': 'Histogram', 'value': 'histogram'},
+                            {'label': 'Violin', 'value': 'violin'}
                         ],
                         placeholder='Plot Type',
                         multi=False,
@@ -581,7 +578,7 @@ def update_apartment_growth_graph(selected_row_indices, rows):
         State('table-apartments-data', 'rows')
     ]
 )
-def update_growth_table_selected_rows(click_data, array, selected_row_indices, rows):
+def update_apartments_table_selected_rows(click_data, array, selected_row_indices, rows):
     # {'points': [{'z': 2, 'curveNumber': 0, 'y': 'st 08', 'x': 'apt 11'}]}
     if not array or not rows or not click_data or 'points' not in click_data or not click_data['points']:
         return selected_row_indices
@@ -609,10 +606,14 @@ def update_growth_table_selected_rows(click_data, array, selected_row_indices, r
     ]
 )
 def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_type):
+    fig_layout = {
+        'title': 'Growth Rate Distributions',
+        'margin': {'l': 250, 'r': 100, 't': 40, 'b': 40, 'pad': 0}
+    }
     if not selected_row_indices or not rows or not fields:
         return {
             'data': [],
-            'layout': {'title': 'Growth Rate Distributions'}
+            'layout': fig_layout
         }
 
     # Determine keys corresponding to selected grouping fields (`fields` was initially
@@ -623,16 +624,16 @@ def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_t
     df = get_apartment_data()
     df = df.set_index(fields).loc[keys]
 
-    # Use given plot type if possible
-    if plot_type is not None:
-        enable_boxplot = plot_type == 'box'
-    # Otherwise, determine whether or not enough groups were selected
-    # such that a boxplot is more useful than a large number of histograms
-    else:
-        enable_boxplot = len(keys) > cfg.summary_n_group_treshold
+    # If plot type not explicitly set, use default based on number of distributions in graph
+    if not plot_type:
+        if len(keys) <= 2:
+            plot_type = 'histogram'
+        elif len(keys) <= 10:
+            plot_type = 'violin'
+        else:
+            plot_type = 'box'
 
     fig_data = []
-    fig_layout = {'title': 'Growth Rate Distributions'}
 
     # Iterate through each experimental condition based on median growth rate and add distribution figure
     groups = df.groupby(df.index)
@@ -640,14 +641,19 @@ def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_t
     for k in keys:
         name = k if isinstance(k, str) else ':'.join(k)
         g = groups.get_group(k)
-        if enable_boxplot:
+        if plot_type in ['box', 'violin']:
             fig_data.append({
                 'x': g['growth_rate'].clip(*cfg.growth_rate_range),
                 'name': name,
-                'type': 'box'
+                'type': plot_type,
+                'box': {
+                    'visible': True
+                },
+                'meanline': {
+                    'visible': True
+                }
             })
             fig_layout['xaxis'] = {'title': '24hr Growth Rate (log2)'}
-            fig_layout['margin'] = {'l': 250}
         else:
             fig_data.append({
                 'x': g['growth_rate'].clip(*cfg.growth_rate_range),
