@@ -161,7 +161,7 @@ class Celldom(object):
         output_path = _exec_nb('growth_rate_analysis_01.ipynb', data_dir, params, output_path=output_path)
         logger.info('Analysis complete; results saved to %s`', output_path)
 
-    def run_overview_app(self, experiment_config_path, output_dir):
+    def run_overview_app(self, experiment_config_path, output_dir, debug=False):
         """Run the experiment output overview application
 
         Args:
@@ -169,6 +169,8 @@ class Celldom(object):
                 (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
             output_dir: Path to output directory; this is the `output_dir` given to `run_processor`
                 (e.g. /lab/data/celldom/output/20180820-G3-full)
+            debug: Flag indicating that Dash server should run in debug mode, which makes it easier
+                to test source code changes without restarting the app
         """
         from celldom_app.overview import config as app_config
         app_config.initialize(experiment_config_path)
@@ -177,7 +179,7 @@ class Celldom(object):
         app_data.initialize(output_dir)
 
         from celldom_app.overview import app
-        app.run_server()
+        app.run_server(debug=debug)
 
 
 if __name__ == '__main__':

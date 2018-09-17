@@ -1,6 +1,7 @@
 import re
 import pandas as pd
 import celldom
+from celldom.config import chip_config
 
 
 class ExperimentConfig(object):
@@ -103,7 +104,7 @@ class ExperimentConfig(object):
         return self._get_config('cytometer')
 
     def get_chip_config(self):
-        return self._get_config('chip')
+        return chip_config.ChipConfig(self._get_config('chip'))
 
     def _validate(self):
         path_field_names = sorted(self.path_field_names)

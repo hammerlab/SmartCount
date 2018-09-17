@@ -10,12 +10,14 @@ ENV_APP_APT_IMG_HEIGHT_PX = 'APP_APT_IMG_HEIGHT_PX'
 ENV_APP_APT_IMG_TMPDIR = 'APP_APT_IMG_TMPDIR'
 ENV_APP_MIN_MEASUREMENT_GAP_SECS = 'APP_APP_MIN_MEASUREMENT_GAP_SECS'
 ENV_APP_REMOVE_OOB_ADDRESS = 'APP_REMOVE_OOB_ADDRESS'
+ENV_APP_ARRAY_CELL_COUNT_FILL = 'APP_ARRAY_CELL_COUNT_FILL'
 
 DEFAULT_APP_HOST_IP = '0.0.0.0'
 DEFAULT_APP_PORT = 8050
 DEFAULT_APP_APT_IMG_HEIGHT_PX = '350'
 DEFAULT_APP_APT_IMG_TMPDIR = '/tmp/app_images'
 DEFAULT_APP_MIN_MEASUREMENT_GAP_SECS = 3600
+DEFAULT_APP_ARRAY_CELL_COUNT_FILL = '-1'
 
 
 class AppConfig(object):
@@ -59,6 +61,11 @@ class AppConfig(object):
     @property
     def remove_oob_address(self):
         return os.getenv(ENV_APP_REMOVE_OOB_ADDRESS, '').lower() != 'false'
+
+    @property
+    def array_cell_count_fill(self):
+        value = os.getenv(ENV_APP_ARRAY_CELL_COUNT_FILL, DEFAULT_APP_ARRAY_CELL_COUNT_FILL)
+        return None if value.lower() == 'none' else float(value)
 
 
 def initialize(exp_config_path):

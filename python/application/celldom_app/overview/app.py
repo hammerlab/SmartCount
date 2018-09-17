@@ -723,7 +723,7 @@ def update_array_graph(array, metric, enable_normalize):
         df['measurement_count'] = 1
 
         if metric == 'cell_count':
-            agg_func, fill_value, value_range = np.median, -1, None
+            agg_func, fill_value, value_range = np.median, cfg.array_cell_count_fill, None
         else:
             agg_func, fill_value, value_range = np.sum, 0, (0, 5)
 
@@ -755,5 +755,5 @@ def update_array_graph(array, metric, enable_normalize):
         raise NotImplementedError('Metric "{}" not yet supported'.format(metric))
 
 
-def run_server():
-    app.run_server(debug=True, port=cfg.app_port, host=cfg.app_host_ip)
+def run_server(debug=False):
+    app.run_server(debug=debug, port=cfg.app_port, host=cfg.app_host_ip)

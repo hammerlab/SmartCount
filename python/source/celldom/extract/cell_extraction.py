@@ -6,6 +6,14 @@ from skimage.measure import regionprops, points_in_poly
 import numpy as np
 
 
+def _default_components_data(chip_config):
+    res = []
+    if 'components' in chip_config:
+        for component in chip_config['components'].keys():
+            res.append(dict(component=component, occupancy=0))
+    return res
+
+
 def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True):
 
     # Validate image input
@@ -29,14 +37,17 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
     assert detections['scores'].ndim == 1
     assert detections['class_ids'].ndim == 1
 
+    # Initialize results
+    cells, components = [], _default_components_data(chip_config)
+
     # Determine indexes of detected cell objects (and return immediately if there are none)
     cell_idx = np.nonzero(detections['class_ids'] == CLASS_INDEX_CELL)[0]
     if cell_idx.size == 0:
-        return []
+        return cells, components
 
     # Subset detections to those for cells
     cell_masks = detections['masks'][..., cell_idx]
-    cell_rois = detections['rois'][cell_idx]
+    # cell_rois = detections['rois'][cell_idx]
     cell_scores = detections['scores'][cell_idx]
     n_cells = len(cell_idx)
 
@@ -44,7 +55,6 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
     intensity_image = rgb2gray(img)
 
     # Process individual cells
-    cells = []
     for i in range(n_cells):
         props = regionprops(
             cell_masks[..., i].astype(int), cache=False,
@@ -79,7 +89,15 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
             centroid_x=centroid[1]
         ))
 
+    # Return defaults if no valid cells were found
+    if len(cells) == 0:
+        return cells, components
+
+    # Build vector of valid cell indexes
+    cell_idx = np.array([c['cell_id'] for c in cells], dtype=int)
+
     # Categorize membership of cells in chip components, if any are present
+    components = []
     if 'components' in chip_config:
         idx = []
         for component, points in chip_config['components'].items():
@@ -95,9 +113,18 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
                 if in_poly[i]:
                     idx.append(i)
 
+            # Add component occupancy across all cells as distinct area / area of component
+            component_masks = cell_masks[..., cell_idx][..., in_poly]
+            occupancy = component_masks.max(axis=-1).sum() if component_masks.size > 0 else 0
+            occupancy = np.clip(occupancy / chip_config.get_component_area(component), 0, 1)
+            components.append(dict(
+                component=component,
+                occupancy=occupancy
+            ))
+
         # If configured to do so, filter cells to only those within at least one component
         if in_components_only:
             # Remove using sorted, de-duplicated index list
             cells = [cells[i] for i in sorted(list(set(idx)))]
 
-    return cells
+    return cells, components
