@@ -205,11 +205,18 @@ def get_page_apartments():
     ]
 
 
-ARRAY_METRICS = [
-    {'label': 'Number of Measurements', 'value': 'measurement_count'},
-    {'label': 'Cell Count', 'value': 'cell_count'},
-    {'label': 'Growth Rate (24hr log2)', 'value': 'growth_rate'}
-]
+def _get_array_metrics():
+    df = data.get_apartment_data()
+    metrics = [
+        {'label': 'Number of Measurements', 'value': 'measurement_count'},
+        {'label': 'Cell Count', 'value': 'cell_count'},
+        {'label': 'Growth Rate (24hr log2)', 'value': 'growth_rate'},
+        {'label': 'Chamber Occupancy Percentage', 'value': 'occupancy_chamber'}
+    ]
+    return [m for m in metrics if m['value'] in df or m['value'] in ['measurement_count', 'growth_rate']]
+
+
+ARRAY_METRICS = _get_array_metrics()
 
 
 def get_page_arrays():
@@ -710,7 +717,7 @@ def update_array_graph(array, metric, enable_normalize):
         array_key = tuple(array.split(':'))
         return d.set_index(data.get_array_key_fields()).loc[array_key].copy()
 
-    if metric in ['cell_count', 'measurement_count']:
+    if metric in ['cell_count', 'measurement_count', 'occupancy_chamber']:
         # Subset data to selected array TODO: choose data based on metric
         df = data.get_apartment_data()
         df = prep(df)
@@ -720,12 +727,20 @@ def update_array_graph(array, metric, enable_normalize):
         df['acq_datetime_group'] = df['acq_datetime'].map(date_map)
         df['elapsed_hours_group'] = df['acq_datetime_group'].map(
             df.groupby('acq_datetime_group')['elapsed_hours'].min())
-        df['measurement_count'] = 1
 
+        # Metric-specific transformations
+        if metric == 'measurement_count':
+            df['measurement_count'] = 1
+        elif metric == 'occupancy_chamber':
+            df['occupancy_chamber'] = df['occupancy_chamber'] * 100
+
+        # Pivot configuration
         if metric == 'cell_count':
             agg_func, fill_value, value_range = np.median, cfg.array_cell_count_fill, None
-        else:
+        elif metric == 'measurement_count':
             agg_func, fill_value, value_range = np.sum, 0, (0, 5)
+        else:
+            agg_func, fill_value, value_range = np.median, None, None
 
         fig = lib.get_array_graph_figure(
             df, metric, enable_normalize,

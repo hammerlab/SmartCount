@@ -3,6 +3,7 @@ from celldom.config.cell_config import CLASS_INDEX_CELL
 from celldom.extract import NO_IMAGES
 from celldom.utils import assert_rgb, rgb2gray
 from skimage.measure import regionprops, points_in_poly
+from skimage.morphology import remove_small_holes, binary_closing
 import numpy as np
 
 
@@ -115,12 +116,32 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
 
             # Add component occupancy across all cells as distinct area / area of component
             component_masks = cell_masks[..., cell_idx][..., in_poly]
-            occupancy = component_masks.max(axis=-1).sum() if component_masks.size > 0 else 0
+            assert component_masks.shape[-1] == in_poly.sum(), \
+                'Expecting {} masks, found {}'.format(in_poly.sum(), component_masks.shape[-1])
+
+            occupancy = 0
+            if component_masks.size > 0:
+                occupancy = remove_small_holes(binary_closing(component_masks.max(axis=-1)), area_threshold=128).sum()
             occupancy = np.clip(occupancy / chip_config.get_component_area(component), 0, 1)
             components.append(dict(
                 component=component,
                 occupancy=occupancy
             ))
+
+            # Mask Debugging
+            # if component == 'chamber' and component_masks.size > 0:
+            #     binary_mask = remove_small_holes(binary_closing(component_masks.max(axis=-1)), min_size=128)
+            #     from skimage import io as skio
+            #     from skimage import draw
+            #     import time
+            #     p = np.array(points)
+            #     rr, cc = draw.polygon_perimeter(p[:, 1], p[:, 0], shape=binary_mask.shape)
+            #     binary_mask[rr, cc] = True
+            #     filepath = '/lab/data/celldom/cellmasks/binary_mask_{:.0f}_{}.png'\
+            #         .format(occupancy*100, int(time.time()))
+            #     print('File: {} | Occupancy: {}'.format(filepath, occupancy))
+            #     skio.imsave(filepath, binary_mask.astype(int) * 255)
+            # /Mask Debugging
 
         # If configured to do so, filter cells to only those within at least one component
         if in_components_only:

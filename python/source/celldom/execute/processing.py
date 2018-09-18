@@ -12,7 +12,7 @@ MAX_FILES_IN_MEM_RES = 500
 
 
 def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
-                  return_results=False, dpf=APT_IMAGES, **kwargs):
+                  return_results=False, save_results=True, dpf=APT_IMAGES, **kwargs):
 
     if return_results and len(files) > MAX_FILES_IN_MEM_RES:
         raise ValueError(
@@ -41,7 +41,8 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
                     results.append(result)
 
                 # Save the results
-                cytometer.save(*result)
+                if save_results:
+                    cytometer.save(*result)
 
             # If there are no markers, log a more succinct message and still count this event as a failure
             except NoMarkerException:
