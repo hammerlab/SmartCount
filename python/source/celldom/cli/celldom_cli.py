@@ -9,7 +9,7 @@ import glob
 import signal
 import copy
 import faulthandler
-from celldom.execute import processing
+from celldom.execute import processing, query
 from celldom.config import experiment_config
 from celldom.extract import NO_IMAGES, DataPersistenceFlags
 import logging
@@ -130,38 +130,7 @@ class Celldom(object):
         )
         logger.info('Processing complete')
 
-    def analyze_growth_rates(
-            self, data_dir, min_cell_size=25, max_cell_size=400,
-            start_of_experiment=None, output_path=None):
-        """Compute and export growth rates for a processed sample
-
-        Args:
-            data_dir: Output directory for processor
-            min_cell_size: Minimum area threshold for cells (any smaller cells are ignored);
-                default is 25 which corresponds to a radius of about 3 pixels.  For reference,
-                at 10x the mode of cell radii is about 7 pixels
-            max_cell_size: Maximum area threshold for cells (any bigger cells are ignored);
-                default is 400 which corresponds to a radius of about 11 pixels.  Again, at
-                10x the mode is around 7 pixels for radii so together the min/max cell size
-                defaults assume a radius of 7 +/- 4 pixels as the allowable range
-            start_of_experiment: Date in YYYY-MM-dd HH:MM:SS format indicating when the experiment
-                started, which is necessary to determine how much time has elapsed for growth rate
-                measurments (e.g. '2018-05-31 16:10:00')
-            output_path: Path in which to save resulting notebook; defaults to
-                $data_dir/analysis/growth_rate_analysis.ipynb
-        Example:
-            celldom analyze_growth_rates --data-dir=/lab/data/celldom/output/experiment_00
-        """
-        params = dict(
-            data_dir=data_dir,
-            min_cell_size=min_cell_size,
-            max_cell_size=max_cell_size,
-            start_of_experiment=start_of_experiment or ''
-        )
-        output_path = _exec_nb('growth_rate_analysis_01.ipynb', data_dir, params, output_path=output_path)
-        logger.info('Analysis complete; results saved to %s`', output_path)
-
-    def run_overview_app(self, experiment_config_path, output_dir):
+    def run_overview_app(self, experiment_config_path, output_dir, debug=False):
         """Run the experiment output overview application
 
         Args:
@@ -169,6 +138,8 @@ class Celldom(object):
                 (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
             output_dir: Path to output directory; this is the `output_dir` given to `run_processor`
                 (e.g. /lab/data/celldom/output/20180820-G3-full)
+            debug: Flag indicating that Dash server should run in debug mode, which makes it easier
+                to test source code changes without restarting the app
         """
         from celldom_app.overview import config as app_config
         app_config.initialize(experiment_config_path)
@@ -177,7 +148,25 @@ class Celldom(object):
         app_data.initialize(output_dir)
 
         from celldom_app.overview import app
-        app.run_server()
+        app.run_server(debug=debug)
+
+    def get_apartment_info(self, experiment_config_path, output_dir, keys):
+        """Get apartment data for a specific set of "keys"
+
+        Args:
+            experiment_config_path: Path to experiment configuration
+                (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
+            output_dir: Path to output directory; this is the `output_dir` given to `run_processor`
+                (e.g. /lab/data/celldom/output/20180820-G3-full)
+            keys: One or more key string(s) representing apartment address in the form experimental condition fields +
+                apartment number + street number (':' delimited); Examples:
+                - gravity:White:3:Control:01:70
+                - gravity:Pink:3:0.5uM:27:02
+                - gravity:Blue:3:Control:04:04
+        """
+        pd.set_option('display.width', 1000)
+        pd.set_option('display.max_colwidth', 1000)
+        return query.get_apartment_info(experiment_config_path, output_dir, keys)
 
 
 if __name__ == '__main__':

@@ -7,15 +7,24 @@ apt_num_digit_count: 2
 apt_num_margins: {bottom: -87, left: -10, right: 40, top: -133}
 components:
   chamber:
-  - [53, 11]
-  - [182, 11]
-  - [182, 187]
-  - [53, 187]
+    boundary:
+    - [86, 11]
+    - [147, 11]
+    - [173, 36]
+    - [183, 62]
+    - [182, 115]
+    - [171, 139]
+    - [119, 187]
+    - [64, 139]
+    - [53, 113]
+    - [54, 61]
+    - [64, 33]
   trap:
-  - [84, 187]
-  - [152, 187]
-  - [152, 223]
-  - [84, 223]
+    boundary:
+    - [84, 187]
+    - [152, 187]
+    - [152, 223]
+    - [84, 223]
 name: chip_G3
 st_num_digit_bounds:
 - [0, 27]
@@ -24,5 +33,5 @@ st_num_digit_count: 2
 st_num_margins: {bottom: 8, left: -188, right: -138, top: -34}
 marker_spacing: {horizontal: 260, vertical: 198}
 # Min/max address ranges on chip
-apt_num_range: [0, 56]
+apt_num_range: [0, 57]
 st_num_range: [0, 15]

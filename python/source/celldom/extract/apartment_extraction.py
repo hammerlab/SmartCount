@@ -180,7 +180,8 @@ def extract(
     # Add cell inference if cell model was provided
     if cell_model is not None:
         for partition in partitions:
-            partition['cells'] = cell_extraction.extract(partition['apt_image'], cell_model, chip_config, dpf=dpf)
+            partition['cells'], partition['components'] = cell_extraction.extract(
+                partition['apt_image'], cell_model, chip_config, dpf=dpf)
 
     return partitions, norm_image, norm_centers, neighbors, rotation
 

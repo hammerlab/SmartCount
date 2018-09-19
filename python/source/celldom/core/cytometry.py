@@ -368,11 +368,14 @@ class Cytometer(object):
         r['cell_count'] = len(cells)
         r = r.append(_get_cell_stats(cells))
 
+        # Summarize component data at apartment level (must reduce to single dict/series)
+        r = r.append(_get_component_stats(r['components']))
+
         # Drop the value of any image fields not flagged for persistence
         for image_field in _get_image_fields(r.index.values, dpf):
             r[image_field] = None
 
-        return r.drop('cells')
+        return r.drop(['cells', 'components'])
 
     def save(self, acq_data, apt_data, cell_data):
         for table, df in [
@@ -450,6 +453,10 @@ def _get_image_fields(fields, dpf):
        f for f in fields
        if _is_image_field(f) and f in dpf_dict and not dpf_dict[f]
     ]
+
+
+def _get_component_stats(components):
+    return pd.Series({('occupancy_' + c['component']): c['occupancy'] for c in components})
 
 
 def _get_cell_stats(

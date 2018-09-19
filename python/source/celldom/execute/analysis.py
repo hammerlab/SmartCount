@@ -25,7 +25,7 @@ def get_experiment_elapsed_hours(apt_data, exp_cond_fields):
     return (apt_data['acq_datetime'].values - exp_start_dates.values) / np.timedelta64(1, 'h')
 
 
-def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None):
+def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None, occupancy_threshold=.5):
 
     df = apt_data.copy()
 
@@ -51,13 +51,27 @@ def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None):
     # Regroup by apartment + time and compute median cell count across all measurements in time
     # (and retain sets of unique acquisition ids as this is very helpful for tracing data back to images)
     df = df.groupby(exp_cond_fields + ['st_num', 'apt_num', 'elapsed_hours', 'acq_datetime'])\
-        .agg({'cell_count': 'median', 'acq_id': (lambda x: set(x))}).reset_index()
+        .agg({
+            'cell_count': 'median',
+            'occupancy_chamber': 'median',
+            'acq_id': (lambda x: set(x))
+        }).reset_index()
 
     def grm(g):
-        tsct = g.set_index('acq_datetime')['cell_count'].sort_index()
-        # Compute growth rate estimation and other useful statistics (including count timeseries)
+        gts = g.set_index('acq_datetime')[['cell_count', 'occupancy_chamber']].sort_index()
+        tsct, tso = gts['cell_count'], gts['occupancy_chamber']
+
+        # Determine "confluence" marker as when previous measurement occupancy is beyond a threshold
+        # and the current count is less than the previous (which when true, is always true forward in time)
+        # Note: any inequality operators evaluated against NaN result in False, as is desired here
+        tsconf = ((tsct.diff() <= 0) & (tso.shift() >= occupancy_threshold)).cummax()
+
+        # Set mask used to select time points for growth modeling
+        vm = ~tsconf.values
+
+        # Compute growth rate estimation and other useful statistics (including timeseries)
         return pd.Series({
-            'growth_rate': modeling.get_growth_rate(g['elapsed_hours'] / 24, g['cell_count']),
+            'growth_rate': modeling.get_growth_rate(g[vm]['elapsed_hours'] / 24, g[vm]['cell_count']),
             'max_cell_count': tsct.max(),
             'min_cell_count': tsct.min(),
             'first_date': tsct.index[0],
@@ -67,12 +81,14 @@ def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None):
             'n': len(tsct),
             'elapsed_hours_min': g['elapsed_hours'].min(),
             'cell_counts': tsct.to_dict(),
+            'occupancies': tso.to_dict(),
+            'confluence': tsconf.to_dict(),
             # Flatten the array of acquisition id sets back into a single set
             'acq_ids': set([acq_id for acq_ids in g['acq_id'].values for acq_id in acq_ids])
         })
 
     # Regroup by st/apt alone (with experimental conditions) and compute growth rates
-    grmcols = ['elapsed_hours', 'acq_datetime', 'cell_count', 'acq_id']
+    grmcols = ['elapsed_hours', 'acq_datetime', 'cell_count', 'occupancy_chamber', 'acq_id']
     df = df.groupby(exp_cond_fields + ['st_num', 'apt_num'])[grmcols].apply(grm).reset_index()
 
     return df

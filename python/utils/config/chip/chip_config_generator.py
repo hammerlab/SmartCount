@@ -193,7 +193,7 @@ class CLI(object):
             # as direct references for containment within an extracted chip image
             points = [[p[0] - cb['x'], p[1] - cb['y']] for p in points]
 
-            temp_config['components'][comp_name] = points
+            temp_config['components'][comp_name] = {'boundary': points}
 
         #######################
         # Save or print results

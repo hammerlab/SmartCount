@@ -1,21 +1,41 @@
-name: Chip 1
-target_scale_factor: 254.16
-apt_margins:
-    left: -160
-    right: 75
-    bottom: 60
-    top: -250
-apt_num_margins:
-  left: 0
-  right: 75
-  bottom: -175
-  top: -205
+apt_margins: {bottom: 56, left: -148, right: 64, top: -240}
+apt_num_digit_bounds:
+- [0, 21]
+- [15, 41]
+- [35, 57]
 apt_num_digit_count: 3
-apt_num_digit_bounds: [[3, 28], [22, 48], [42, 68]]
-st_num_margins:
-  left: -150
-  right: -65
-  bottom: -5
-  top: -37
+apt_num_margins: {bottom: -174, left: 6, right: 63, top: -205}
+components:
+  chamber:
+    boundary:
+    - [82, 7]
+    - [128, 7]
+    - [137, 18]
+    - [144, 34]
+    - [149, 52]
+    - [148, 196]
+    - [144, 211]
+    - [136, 228]
+    - [105, 260]
+    - [77, 232]
+    - [66, 211]
+    - [61, 191]
+    - [61, 50]
+    - [68, 27]
+    - [75, 15]
+  trap:
+    boundary:
+    - [64, 261]
+    - [146, 261]
+    - [146, 295]
+    - [64, 295]
+name: chip_01
+st_num_digit_bounds:
+- [0, 22]
+- [17, 43]
+- [37, 58]
 st_num_digit_count: 3
-st_num_digit_bounds: [[3, 28], [22, 48], [42, 68]]
+st_num_margins: {bottom: -7, left: -145, right: -87, top: -38}
+marker_spacing: {horizontal: 255, vertical: 275}
+st_num_range: [0, 31]
+apt_num_range: [0, 46]

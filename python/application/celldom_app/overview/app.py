@@ -205,11 +205,18 @@ def get_page_apartments():
     ]
 
 
-ARRAY_METRICS = [
-    {'label': 'Number of Measurements', 'value': 'measurement_count'},
-    {'label': 'Cell Count', 'value': 'cell_count'},
-    {'label': 'Growth Rate (24hr log2)', 'value': 'growth_rate'}
-]
+def _get_array_metrics():
+    df = data.get_apartment_data()
+    metrics = [
+        {'label': 'Number of Measurements', 'value': 'measurement_count'},
+        {'label': 'Cell Count', 'value': 'cell_count'},
+        {'label': 'Growth Rate (24hr log2)', 'value': 'growth_rate'},
+        {'label': 'Chamber Occupancy Percentage', 'value': 'occupancy_chamber'}
+    ]
+    return [m for m in metrics if m['value'] in df or m['value'] in ['measurement_count', 'growth_rate']]
+
+
+ARRAY_METRICS = _get_array_metrics()
 
 
 def get_page_arrays():
@@ -293,21 +300,17 @@ def get_page_arrays():
 
 def get_page_summary():
     df_acq = get_acquisition_data()
-    df_grd = get_apartment_data()
+    df_arr = get_array_data()
     n_raw_files = len(df_acq)
 
     # Count raw files processed for each experimental condition
     df_acq = df_acq.groupby(cfg.experimental_condition_fields).size().rename('num_raw_images')
 
-    # Compute mean growth rate and apartment count by experimental condition
-    df_grd = (
-        df_grd.assign(address=df_grd['apt_num'].str.cat(df_grd['st_num'], sep=':'))
-            .groupby(cfg.experimental_condition_fields)
-            .agg({'address': 'nunique', 'growth_rate': 'median'})
-            .rename(columns={'address': 'num_apartments', 'growth_rate': 'median_growth_rate'})
-    )
+    # Select fields from array data
+    df_arr = df_arr.set_index(cfg.experimental_condition_fields)[['median_growth_rate', 'num_apartments']]
 
-    df = pd.concat([df_acq, df_grd], axis=1).reset_index()
+    # Merge acquisition summary and array data
+    df = pd.concat([df_acq, df_arr], axis=1).reset_index()
 
     return [
         html.Div(id='table-info-summary', style={'float': 'right'}),
@@ -370,7 +373,8 @@ def get_page_summary():
                     dcc.Dropdown(
                         options=[
                             {'label': 'Box', 'value': 'box'},
-                            {'label': 'Histogram', 'value': 'hist'}
+                            {'label': 'Histogram', 'value': 'histogram'},
+                            {'label': 'Violin', 'value': 'violin'}
                         ],
                         placeholder='Plot Type',
                         multi=False,
@@ -461,7 +465,7 @@ for page_name in PAGE_NAMES:
 
 def get_selected_growth_data(rows, selected_row_indices):
     df = pd.DataFrame([rows[i] for i in selected_row_indices])
-    for c in ['cell_counts', 'acq_ids']:
+    for c in ['cell_counts', 'acq_ids', 'occupancies', 'confluence']:
         df[c] = df[c].apply(json.loads)
     return df
 
@@ -555,12 +559,16 @@ def update_apartment_growth_graph(selected_row_indices, rows):
     fig_data = []
 
     for i, r in df.iterrows():
-        ts = pd.Series({pd.to_datetime(k): v for k, v in r['cell_counts'].items()}).sort_index()
+        tsct = pd.Series({pd.to_datetime(k): v for k, v in r['cell_counts'].items()}).sort_index()
+        tso = pd.Series({pd.to_datetime(k): v for k, v in r['occupancies'].items()}).sort_index()
+        tsconf = pd.Series({pd.to_datetime(k): v for k, v in r['confluence'].items()}).sort_index()
         fig_data.append({
-            'x': ts.index,
-            'y': ts.values,
+            'x': tsct.index,
+            'y': tsct.values,
             'name': data.get_apartment_key(r),
-            'type': 'line'
+            'type': 'line',
+            'marker': {'symbol': ['circle-open' if v else 'circle' for v in tsconf.values]},
+            'text': ['Occupancy: {:.0f}%'.format(100*v) for v in tso.values]
         })
     fig_layout = {
         'title': 'Apartment Cell Counts',
@@ -581,7 +589,7 @@ def update_apartment_growth_graph(selected_row_indices, rows):
         State('table-apartments-data', 'rows')
     ]
 )
-def update_growth_table_selected_rows(click_data, array, selected_row_indices, rows):
+def update_apartments_table_selected_rows(click_data, array, selected_row_indices, rows):
     # {'points': [{'z': 2, 'curveNumber': 0, 'y': 'st 08', 'x': 'apt 11'}]}
     if not array or not rows or not click_data or 'points' not in click_data or not click_data['points']:
         return selected_row_indices
@@ -609,10 +617,14 @@ def update_growth_table_selected_rows(click_data, array, selected_row_indices, r
     ]
 )
 def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_type):
+    fig_layout = {
+        'title': 'Growth Rate Distributions',
+        'margin': {'l': 250, 'r': 100, 't': 40, 'b': 40, 'pad': 0}
+    }
     if not selected_row_indices or not rows or not fields:
         return {
             'data': [],
-            'layout': {'title': 'Growth Rate Distributions'}
+            'layout': fig_layout
         }
 
     # Determine keys corresponding to selected grouping fields (`fields` was initially
@@ -623,16 +635,16 @@ def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_t
     df = get_apartment_data()
     df = df.set_index(fields).loc[keys]
 
-    # Use given plot type if possible
-    if plot_type is not None:
-        enable_boxplot = plot_type == 'box'
-    # Otherwise, determine whether or not enough groups were selected
-    # such that a boxplot is more useful than a large number of histograms
-    else:
-        enable_boxplot = len(keys) > cfg.summary_n_group_treshold
+    # If plot type not explicitly set, use default based on number of distributions in graph
+    if not plot_type:
+        if len(keys) <= 2:
+            plot_type = 'histogram'
+        elif len(keys) <= 10:
+            plot_type = 'violin'
+        else:
+            plot_type = 'box'
 
     fig_data = []
-    fig_layout = {'title': 'Growth Rate Distributions'}
 
     # Iterate through each experimental condition based on median growth rate and add distribution figure
     groups = df.groupby(df.index)
@@ -640,14 +652,19 @@ def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_t
     for k in keys:
         name = k if isinstance(k, str) else ':'.join(k)
         g = groups.get_group(k)
-        if enable_boxplot:
+        if plot_type in ['box', 'violin']:
             fig_data.append({
                 'x': g['growth_rate'].clip(*cfg.growth_rate_range),
                 'name': name,
-                'type': 'box'
+                'type': plot_type,
+                'box': {
+                    'visible': True
+                },
+                'meanline': {
+                    'visible': True
+                }
             })
             fig_layout['xaxis'] = {'title': '24hr Growth Rate (log2)'}
-            fig_layout['margin'] = {'l': 250}
         else:
             fig_data.append({
                 'x': g['growth_rate'].clip(*cfg.growth_rate_range),
@@ -704,7 +721,7 @@ def update_array_graph(array, metric, enable_normalize):
         array_key = tuple(array.split(':'))
         return d.set_index(data.get_array_key_fields()).loc[array_key].copy()
 
-    if metric in ['cell_count', 'measurement_count']:
+    if metric in ['cell_count', 'measurement_count', 'occupancy_chamber']:
         # Subset data to selected array TODO: choose data based on metric
         df = data.get_apartment_data()
         df = prep(df)
@@ -714,12 +731,20 @@ def update_array_graph(array, metric, enable_normalize):
         df['acq_datetime_group'] = df['acq_datetime'].map(date_map)
         df['elapsed_hours_group'] = df['acq_datetime_group'].map(
             df.groupby('acq_datetime_group')['elapsed_hours'].min())
-        df['measurement_count'] = 1
 
+        # Metric-specific transformations
+        if metric == 'measurement_count':
+            df['measurement_count'] = 1
+        elif metric == 'occupancy_chamber':
+            df['occupancy_chamber'] = df['occupancy_chamber'] * 100
+
+        # Pivot configuration
         if metric == 'cell_count':
-            agg_func, fill_value, value_range = np.median, -1, None
-        else:
+            agg_func, fill_value, value_range = np.median, cfg.array_cell_count_fill, None
+        elif metric == 'measurement_count':
             agg_func, fill_value, value_range = np.sum, 0, (0, 5)
+        else:
+            agg_func, fill_value, value_range = np.median, None, None
 
         fig = lib.get_array_graph_figure(
             df, metric, enable_normalize,
@@ -749,5 +774,5 @@ def update_array_graph(array, metric, enable_normalize):
         raise NotImplementedError('Metric "{}" not yet supported'.format(metric))
 
 
-def run_server():
-    app.run_server(debug=True, port=cfg.app_port, host=cfg.app_host_ip)
+def run_server(debug=False):
+    app.run_server(debug=debug, port=cfg.app_port, host=cfg.app_host_ip)

@@ -3,7 +3,16 @@ from celldom.config.cell_config import CLASS_INDEX_CELL
 from celldom.extract import NO_IMAGES
 from celldom.utils import assert_rgb, rgb2gray
 from skimage.measure import regionprops, points_in_poly
+from skimage.morphology import remove_small_holes, binary_closing
 import numpy as np
+
+
+def _default_components_data(chip_config):
+    res = []
+    if 'components' in chip_config:
+        for component in chip_config['components'].keys():
+            res.append(dict(component=component, occupancy=0))
+    return res
 
 
 def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True):
@@ -29,14 +38,17 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
     assert detections['scores'].ndim == 1
     assert detections['class_ids'].ndim == 1
 
+    # Initialize results
+    cells, components = [], _default_components_data(chip_config)
+
     # Determine indexes of detected cell objects (and return immediately if there are none)
     cell_idx = np.nonzero(detections['class_ids'] == CLASS_INDEX_CELL)[0]
     if cell_idx.size == 0:
-        return []
+        return cells, components
 
     # Subset detections to those for cells
     cell_masks = detections['masks'][..., cell_idx]
-    cell_rois = detections['rois'][cell_idx]
+    # cell_rois = detections['rois'][cell_idx]
     cell_scores = detections['scores'][cell_idx]
     n_cells = len(cell_idx)
 
@@ -44,7 +56,6 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
     intensity_image = rgb2gray(img)
 
     # Process individual cells
-    cells = []
     for i in range(n_cells):
         props = regionprops(
             cell_masks[..., i].astype(int), cache=False,
@@ -79,10 +90,20 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
             centroid_x=centroid[1]
         ))
 
+    # Return defaults if no valid cells were found
+    if len(cells) == 0:
+        return cells, components
+
+    # Build vector of valid cell indexes
+    cell_idx = np.array([c['cell_id'] for c in cells], dtype=int)
+
     # Categorize membership of cells in chip components, if any are present
+    components = []
     if 'components' in chip_config:
         idx = []
-        for component, points in chip_config['components'].items():
+        for component, measurements in chip_config['components'].items():
+            points = measurements['boundary']
+
             # points_in_poly expects (x, y) tuples
             centroids = [(c['centroid_x'], c['centroid_y']) for c in cells]
             in_poly = points_in_poly(centroids, points)
@@ -95,9 +116,40 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
                 if in_poly[i]:
                     idx.append(i)
 
+            # Add component occupancy across all cells as distinct area / area of component
+            component_masks = cell_masks[..., cell_idx][..., in_poly]
+            assert component_masks.shape[-1] == in_poly.sum(), \
+                'Expecting {} masks, found {}'.format(in_poly.sum(), component_masks.shape[-1])
+
+            occupancy = 0
+            component_area = chip_config.get_component_area(component)
+            if component_masks.size > 0:
+                # Fill holes up to 1% of component area
+                occupancy = remove_small_holes(
+                    binary_closing(component_masks.max(axis=-1)),
+                    area_threshold=max(int(component_area*.01), 8)
+                ).sum()
+            occupancy = np.clip(occupancy / component_area, 0, 1)
+            components.append(dict(component=component, occupancy=occupancy))
+
+            # Mask Debugging
+            # if component == 'chamber' and component_masks.size > 0:
+            #     binary_mask = remove_small_holes(binary_closing(component_masks.max(axis=-1)), min_size=128)
+            #     from skimage import io as skio
+            #     from skimage import draw
+            #     import time
+            #     p = np.array(points)
+            #     rr, cc = draw.polygon_perimeter(p[:, 1], p[:, 0], shape=binary_mask.shape)
+            #     binary_mask[rr, cc] = True
+            #     filepath = '/lab/data/celldom/cellmasks/binary_mask_{:.0f}_{}.png'\
+            #         .format(occupancy*100, int(time.time()))
+            #     print('File: {} | Occupancy: {}'.format(filepath, occupancy))
+            #     skio.imsave(filepath, binary_mask.astype(int) * 255)
+            # /Mask Debugging
+
         # If configured to do so, filter cells to only those within at least one component
         if in_components_only:
             # Remove using sorted, de-duplicated index list
             cells = [cells[i] for i in sorted(list(set(idx)))]
 
-    return cells
+    return cells, components
