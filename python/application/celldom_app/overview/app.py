@@ -465,7 +465,7 @@ for page_name in PAGE_NAMES:
 
 def get_selected_growth_data(rows, selected_row_indices):
     df = pd.DataFrame([rows[i] for i in selected_row_indices])
-    for c in ['cell_counts', 'acq_ids']:
+    for c in ['cell_counts', 'acq_ids', 'occupancies', 'confluence']:
         df[c] = df[c].apply(json.loads)
     return df
 
@@ -559,12 +559,16 @@ def update_apartment_growth_graph(selected_row_indices, rows):
     fig_data = []
 
     for i, r in df.iterrows():
-        ts = pd.Series({pd.to_datetime(k): v for k, v in r['cell_counts'].items()}).sort_index()
+        tsct = pd.Series({pd.to_datetime(k): v for k, v in r['cell_counts'].items()}).sort_index()
+        tso = pd.Series({pd.to_datetime(k): v for k, v in r['occupancies'].items()}).sort_index()
+        tsconf = pd.Series({pd.to_datetime(k): v for k, v in r['confluence'].items()}).sort_index()
         fig_data.append({
-            'x': ts.index,
-            'y': ts.values,
+            'x': tsct.index,
+            'y': tsct.values,
             'name': data.get_apartment_key(r),
-            'type': 'line'
+            'type': 'line',
+            'marker': {'symbol': ['circle-open' if v else 'circle' for v in tsconf.values]},
+            'text': ['Occupancy: {:.0f}%'.format(100*v) for v in tso.values]
         })
     fig_layout = {
         'title': 'Apartment Cell Counts',

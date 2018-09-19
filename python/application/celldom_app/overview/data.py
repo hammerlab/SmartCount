@@ -179,10 +179,14 @@ def initialize(data_dir):
 
     if KEY_GROWTH_DATA not in cache:
         logger.info('Computing growth rate statistics (this may take 60 seconds or so the first time)')
-        df = analysis.get_growth_rate_data(cache[KEY_APT_DATA], cfg.experimental_condition_fields)
+        df = analysis.get_growth_rate_data(
+            cache[KEY_APT_DATA], cfg.experimental_condition_fields,
+            occupancy_threshold=cfg.confluence_occupancy_threshold
+        )
 
         # Convert any non-string objects to json strings to avoid plotly serialization errors
-        df['cell_counts'] = df['cell_counts'].apply(lambda m: json.dumps({str(k): v for k, v in m.items()}))
+        for c in ['cell_counts', 'occupancies', 'confluence']:
+            df[c] = df[c].apply(lambda m: json.dumps({str(k): v for k, v in m.items()}))
         df['acq_ids'] = df['acq_ids'].apply(lambda v: json.dumps(list(v)))
         cache[KEY_GROWTH_DATA] = df
 

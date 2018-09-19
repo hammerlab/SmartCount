@@ -101,7 +101,9 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
     components = []
     if 'components' in chip_config:
         idx = []
-        for component, points in chip_config['components'].items():
+        for component, measurements in chip_config['components'].items():
+            points = measurements['boundary']
+
             # points_in_poly expects (x, y) tuples
             centroids = [(c['centroid_x'], c['centroid_y']) for c in cells]
             in_poly = points_in_poly(centroids, points)
@@ -120,13 +122,15 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
                 'Expecting {} masks, found {}'.format(in_poly.sum(), component_masks.shape[-1])
 
             occupancy = 0
+            component_area = chip_config.get_component_area(component)
             if component_masks.size > 0:
-                occupancy = remove_small_holes(binary_closing(component_masks.max(axis=-1)), area_threshold=128).sum()
-            occupancy = np.clip(occupancy / chip_config.get_component_area(component), 0, 1)
-            components.append(dict(
-                component=component,
-                occupancy=occupancy
-            ))
+                # Fill holes up to 1% of component area
+                occupancy = remove_small_holes(
+                    binary_closing(component_masks.max(axis=-1)),
+                    area_threshold=max(int(component_area*.01), 8)
+                ).sum()
+            occupancy = np.clip(occupancy / component_area, 0, 1)
+            components.append(dict(component=component, occupancy=occupancy))
 
             # Mask Debugging
             # if component == 'chamber' and component_masks.size > 0:
