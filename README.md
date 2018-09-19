@@ -55,3 +55,15 @@ After running the container, you will see a message like:
 If a browser has already opened (which happens automatically on mac), then you can paste the portion
 after "token=" into the text box to login.  After this you will be in [jupyterlab](http://jupyterlab.readthedocs.io/en/stable/)
 and can use that to write/run code (either python or bash).
+
+
+## Development Notes
+
+### Backups 
+
+To sync local annotations to Google Storage:
+
+```bash
+cd /data/disk2/celldom/dataset
+gsutil rsync -r training gs://celldom/dataset/training
+```
