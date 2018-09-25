@@ -7,6 +7,9 @@ from celldom.config import chip_config
 class ExperimentConfig(object):
 
     def __init__(self, conf):
+        # Load configuration if provided as path instead of deserialized object
+        if isinstance(conf, str):
+            conf = celldom.read_config(conf)
         self.conf = conf
         self._validate()
 
@@ -174,7 +177,7 @@ def get_exp_config_by_name(name):
     exp_config = experiment_config.ExperimentConfig(exp_configuration_path)
 
     # Short version (provided by this function):
-    exp_config = experiment_config.get_experiment_configuration('experiment_example_01')
+    exp_config = experiment_config.get_exp_config_by_name('experiment_example_01')
     ```
 
     Args:

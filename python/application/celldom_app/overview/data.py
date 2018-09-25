@@ -125,7 +125,7 @@ def _clean(df):
 
 def _prep(df):
     """Add or transform any globally available fields"""
-    df['elapsed_hours'] = analysis.get_experiment_elapsed_hours(df, cfg.experimental_condition_fields)
+    df = analysis.add_experiment_date_groups(df, cfg.experimental_condition_fields, cfg.min_measurement_gap_seconds)
     return df
 
 
@@ -194,7 +194,7 @@ def initialize(data_dir):
         logger.info('Computing array summary data')
         df = cache[KEY_GROWTH_DATA]
         df = df.groupby(cfg.experimental_condition_fields).agg({
-                'growth_rate': ['count', 'median'],
+                'growth_rate': ['count', 'median', 'mean'],
                 'first_date': 'min',
                 'last_date': 'max'
             })
@@ -202,6 +202,7 @@ def initialize(data_dir):
         df = df.rename(columns={
             'growth_rate:count': 'num_apartments',
             'growth_rate:median': 'median_growth_rate',
+            'growth_rate:mean': 'mean_growth_rate',
             'first_date:min': 'first_date',
             'last_date:max': 'last_date'
         })

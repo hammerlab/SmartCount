@@ -9,6 +9,52 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_DATE_GROUP_GAP_SECONDS = 3600
+
+
+def get_experiment_date_groups(dates, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SECONDS):
+    # Make sure dates are sorted
+    if not dates.is_monotonic_increasing:
+        dates = dates.sort_values()
+
+    # Make sure dates are also unique
+    if not dates.is_unique:
+        dates = dates.drop_duplicates()
+
+    # Create a new group index each time the difference between steps exceeds the given threshold (in seconds)
+    groups = (dates.diff().dt.seconds >= min_gap_seconds).cumsum()
+
+    # Get the minimum date for each group and then get a vector of len(dates) containaing the group date
+    # for each original date
+    groups = groups.map(dates.groupby(groups).min())
+
+    # Return a series mapping the original dates to the grouped date
+    return pd.Series(groups.values, index=dates.values)
+
+
+def add_experiment_date_groups(apt_data, exp_cond_fields, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SECONDS):
+    """Group dates and elapsed time fields by inferred date groups
+
+    This often produces time period groupings that are much more meaningful than raw dates round down to a less
+    granular frequency.
+    """
+    df = apt_data
+
+    # Add elapsed hours if not present
+    if 'elapsed_hours' not in df:
+        df['elapsed_hours'] = get_experiment_elapsed_hours(df, exp_cond_fields)
+
+    # Compute date groupings for each experimental condition group and concatenate the results
+    res = []
+    for _, g in df.groupby(exp_cond_fields):
+        dg = g.copy()
+        date_map = get_experiment_date_groups(dg['acq_datetime'], min_gap_seconds)
+        dg['acq_datetime_group'] = dg['acq_datetime'].map(date_map)
+        dg['elapsed_hours_group'] = dg['acq_datetime_group'].map(
+            dg.groupby('acq_datetime_group')['elapsed_hours'].min())
+        res.append(dg)
+    return pd.concat(res).reset_index(drop=True)
+
 
 def get_experiment_start_dates(apt_data, exp_cond_fields):
     return apt_data.groupby(exp_cond_fields)['acq_datetime'].min().rename('experiment_start_date')
@@ -46,7 +92,8 @@ def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None, occupancy_th
         df = df[df['cell_count'].notnull()].drop('original_cell_count', axis=1)
 
     # Infer experiment start dates if not given, based on earliest timestamps in data
-    df['elapsed_hours'] = get_experiment_elapsed_hours(df, exp_cond_fields)
+    if 'elapsed_hours' not in df:
+        df['elapsed_hours'] = get_experiment_elapsed_hours(df, exp_cond_fields)
 
     # Regroup by apartment + time and compute median cell count across all measurements in time
     # (and retain sets of unique acquisition ids as this is very helpful for tracing data back to images)
