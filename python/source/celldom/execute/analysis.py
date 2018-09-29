@@ -71,6 +71,11 @@ def get_experiment_elapsed_hours(apt_data, exp_cond_fields):
     return (apt_data['acq_datetime'].values - exp_start_dates.values) / np.timedelta64(1, 'h')
 
 
+GROWTH_RATE_DICT_FIELDS = ['cell_counts', 'occupancies', 'confluence']
+GROWTH_RATE_LIST_FIELDS = ['acq_ids']
+GROWTH_RATE_OBJ_FIELDS = GROWTH_RATE_DICT_FIELDS + GROWTH_RATE_LIST_FIELDS
+
+
 def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None, occupancy_threshold=.5):
 
     df = apt_data.copy()
@@ -131,7 +136,7 @@ def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None, occupancy_th
             'occupancies': tso.to_dict(),
             'confluence': tsconf.to_dict(),
             # Flatten the array of acquisition id sets back into a single set
-            'acq_ids': set([acq_id for acq_ids in g['acq_id'].values for acq_id in acq_ids])
+            'acq_ids': list(set([acq_id for acq_ids in g['acq_id'].values for acq_id in acq_ids]))
         })
 
     # Regroup by st/apt alone (with experimental conditions) and compute growth rates

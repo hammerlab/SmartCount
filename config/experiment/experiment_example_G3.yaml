@@ -1,6 +1,7 @@
 name: G3 Test Experiment
 chip: {name: chip_G3}
 cytometer: {name: cytometer_02}
+analysis: {name: default}
 acquisition:
   magnification: 16
   reflection: false
@@ -23,7 +24,4 @@ groupings:
   # *IMPORTANT* Combinations of these fields must correspond to distinct apt_num/st_num namespaces (which
   # usually translates to defining individual chips)
   experimental_conditions: [pump, color, condition, cohort]
-analysis:
-  confluence_detection:
-    component_occupancy_threshold:
-      chamber: # Find a good setting on area (as % of bounding box)
+

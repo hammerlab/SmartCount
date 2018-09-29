@@ -12,7 +12,7 @@ import json
 import plotly
 import logging
 import glob
-from celldom.execute.analysis import add_experiment_date_groups
+from celldom.execute.analysis import add_experiment_date_groups, GROWTH_RATE_OBJ_FIELDS
 from celldom_app.overview import data
 from celldom_app.overview import config
 from celldom_app.overview import lib
@@ -466,7 +466,8 @@ for page_name in PAGE_NAMES:
 
 def get_selected_growth_data(rows, selected_row_indices):
     df = pd.DataFrame([rows[i] for i in selected_row_indices])
-    for c in ['cell_counts', 'acq_ids', 'occupancies', 'confluence']:
+    # Deserialize any json objects encoded in execute.calculation.calculate_apartment_growth_rates
+    for c in GROWTH_RATE_OBJ_FIELDS:
         df[c] = df[c].apply(json.loads)
     return df
 
@@ -604,8 +605,13 @@ def update_apartments_table_selected_rows(click_data, array, selected_row_indice
 
     # Get indices where keys are equal, avoiding argwhere since results are grouped by element
     indices = list(np.flatnonzero(keys == key))
+    if len(indices) == 0:
+        logger.info('No apartment/growth rate data found for key "%s"', key)
     selected_row_indices.extend(indices)
-    return selected_row_indices
+
+    # De-duplicated selected indexes as it is possible to trigger this method multiple times with the same
+    # target array
+    return list(np.unique(selected_row_indices))
 
 
 @app.callback(

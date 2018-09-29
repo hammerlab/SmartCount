@@ -2,6 +2,7 @@ import re
 import pandas as pd
 import celldom
 from celldom.config import chip_config
+from celldom.config import analysis_config
 
 
 class ExperimentConfig(object):
@@ -87,6 +88,10 @@ class ExperimentConfig(object):
             )
         return ['acq_' + c for c in self.conf['groupings']['experimental_conditions']]
 
+    @property
+    def apartment_address_fields(self):
+        return self.experimental_condition_fields + ['apt_num', 'st_num']
+
     def _get_config(self, typ):
         if typ not in self.conf:
             raise ValueError('Experiment configuration does not have required property "{}"'.format(typ))
@@ -108,6 +113,9 @@ class ExperimentConfig(object):
 
     def get_chip_config(self):
         return chip_config.ChipConfig(self._get_config('chip'))
+
+    def get_analysis_config(self):
+        return analysis_config.AnalysisConfig(self._get_config('analysis'))
 
     def _validate(self):
         path_field_names = sorted(self.path_field_names)

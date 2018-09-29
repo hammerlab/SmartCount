@@ -8,6 +8,8 @@ import time
 from celldom.execute import analysis
 from celldom.execute import visualization
 from celldom.core import cytometry
+from celldom.core.experiment import Experiment
+from celldom.execute import calculation
 from celldom_app.overview import config
 from cvutils.encoding import base64_encode_image
 from skimage import color
@@ -26,15 +28,15 @@ KEY_APT_DATA = 'apartment_data'
 KEY_ACQ_DATA = 'acquisition_data'
 KEY_CELL_DATA = 'cell_data'
 KEY_ARRAY_DATA = 'array_data'
-KEY_APT_IMG_DATA = 'apartment_image_data'
-SAVE_KEYS = [KEY_GROWTH_DATA, KEY_APT_IMG_DATA]
+# Currently, nothing is cached by application (all such functionality should be pushed to celldom.execute.calculation)
+SAVE_KEYS = []
 STORE_READ_MAX_ATTEMPTS = 10
 STORE_READ_PAUSE_SECS = 5
 KEY_SEP = ':'
 
 
-def save(overwrite=False, keys=SAVE_KEYS):
-    for k in keys:
+def save(overwrite=False):
+    for k in SAVE_KEYS:
         if k not in cache:
             continue
         f = osp.join(cache_dir, k + '.h5')
@@ -46,8 +48,9 @@ def save(overwrite=False, keys=SAVE_KEYS):
 def restore():
     for f in glob.glob(osp.join(cache_dir, '*.h5')):
         k = osp.basename(f).split('.')[0]
-        logger.info('Loading cached object "%s" from path "%s"', k, f)
-        cache[k] = pd.read_hdf(f)
+        if k in SAVE_KEYS:
+            logger.info('Loading cached object "%s" from path "%s"', k, f)
+            cache[k] = pd.read_hdf(f)
 
 
 def get_growth_data():
@@ -75,7 +78,7 @@ def get_array_key_fields():
 
 
 def get_apartment_key_fields():
-    return cfg.experimental_condition_fields + ['apt_num', 'st_num']
+    return cfg.exp_config.apartment_address_fields
 
 
 def make_key_string(values):
@@ -103,30 +106,9 @@ def get_array_key(row):
     return _get_key(row, get_array_key_fields())
 
 
-def _clean(df):
-    """Apply any global cleaning/filtering"""
-    if 'st_num' in df and 'apt_num' in df:
-        chip_config = cfg.exp_config.get_chip_config()
-        mask = df['st_num'].astype(float).between(*chip_config['st_num_range']) & \
-               df['apt_num'].astype(float).between(*chip_config['apt_num_range'])
-        mask = mask.values
-        n_remove = np.sum(~mask)
-        if n_remove > 0:
-            n = len(df)
-            logger.info(
-                'Removing %s rows of %s from dataframe with apartment/street numbers outside of '
-                'expected range (apartment range = %s, street range = %s)',
-                n_remove, n, chip_config['apt_num_range'], chip_config['st_num_range']
-            )
-            df = df.loc[mask]
-            assert len(df) == n - n_remove
-    return df
-
-
-def _prep(df):
+def _prep(experiment, df):
     """Add or transform any globally available fields"""
-    df = analysis.add_experiment_date_groups(df, cfg.experimental_condition_fields, cfg.min_measurement_gap_seconds)
-    return df
+    return calculation.add_measurement_times(experiment, df)
 
 
 def initialize(data_dir):
@@ -142,62 +124,32 @@ def initialize(data_dir):
         os.makedirs(cache_dir, exist_ok=True)
     restore()
 
-    # Extract necessary data from experiment output store
-    ct = 0
-    while ct < STORE_READ_MAX_ATTEMPTS:
-        try:
-            store = cytometry.get_readonly_datastore(data_dir)
-            if cfg.remove_oob_address:
-                logger.info('Loading experiment data with OOB apartment addresses removed')
-                cache[KEY_CELL_DATA] = _prep(_clean(store.get('cell')))
-                cache[KEY_APT_DATA] = _prep(_clean(store.get('apartment')))
-            else:
-                logger.info('Loading experiment data without removing OOB apartment addresses')
-                cache[KEY_CELL_DATA] = _prep(store.get('cell'))
-                cache[KEY_APT_DATA] = _prep(store.get('apartment'))
-            cache[KEY_ACQ_DATA] = _prep(store.get('acquisition'))
-            break
-        except (AttributeError, HDF5ExtError):
-            ct += 1
-            logger.warning(
-                'Failed to open cytometry datastore (processor may still be running); '
-                'will pause for %s second(s) and try again (attempt %s of %s)',
-                STORE_READ_PAUSE_SECS, ct, STORE_READ_MAX_ATTEMPTS
-            )
-            time.sleep(STORE_READ_PAUSE_SECS)
-    if ct >= STORE_READ_MAX_ATTEMPTS:
-        raise ValueError(
-            'Failed to open experiment datastore after {} attempts (processor may still be running)'
-            .format(STORE_READ_MAX_ATTEMPTS)
-        )
+    experiment = Experiment(cfg.exp_config, data_dir=data_dir)
 
     # Initialize image datastore
     try:
-        image_store = cytometry.get_readonly_images(data_dir)
+        image_store = experiment.get_image_store()
     except Exception:
         logger.warning('Image data not available (processor is likely still running)')
 
-    if KEY_GROWTH_DATA not in cache:
-        logger.info('Computing growth rate statistics (this may take 60 seconds or so the first time)')
-        df = analysis.get_growth_rate_data(
-            cache[KEY_APT_DATA], cfg.experimental_condition_fields,
-            occupancy_threshold=cfg.confluence_occupancy_threshold
-        )
+    # Extract necessary data from experiment output stores
+    store = experiment.get_data_store()
+    cache[KEY_CELL_DATA] = _prep(experiment, store.get('cell'))
+    cache[KEY_APT_DATA] = _prep(experiment, store.get('apartment'))
+    cache[KEY_ACQ_DATA] = _prep(experiment, store.get('acquisition'))
 
-        # Convert any non-string objects to json strings to avoid plotly serialization errors
-        for c in ['cell_counts', 'occupancies', 'confluence']:
-            df[c] = df[c].apply(lambda m: json.dumps({str(k): v for k, v in m.items()}))
-        df['acq_ids'] = df['acq_ids'].apply(lambda v: json.dumps(list(v)))
+    # Load/compute growth rate data
+    if KEY_GROWTH_DATA not in cache:
+        df = calculation.calculate_apartment_growth_rates(experiment, overwrite=cfg.force_result_calculation)
         cache[KEY_GROWTH_DATA] = df
 
     if KEY_ARRAY_DATA not in cache:
-        logger.info('Computing array summary data')
         df = cache[KEY_GROWTH_DATA]
         df = df.groupby(cfg.experimental_condition_fields).agg({
-                'growth_rate': ['count', 'median', 'mean'],
-                'first_date': 'min',
-                'last_date': 'max'
-            })
+            'growth_rate': ['count', 'median', 'mean'],
+            'first_date': 'min',
+            'last_date': 'max'
+        })
         df.columns = [':'.join(c) for c in df]
         df = df.rename(columns={
             'growth_rate:count': 'num_apartments',
@@ -211,6 +163,14 @@ def initialize(data_dir):
 
     # Save any cached objects that haven't already been saved
     save(overwrite=False)
+
+    # Remove OOB apartments if configured to do so
+    if cfg.remove_oob_address:
+        logger.info('Experiment data loaded with OOB apartment addresses removed')
+        for k in [KEY_CELL_DATA, KEY_APT_DATA, KEY_GROWTH_DATA]:
+            cache[k] = calculation.remove_oob_apartments(experiment, cache[k])
+    else:
+        logger.info('Experiment data loaded without removing OOB apartment addresses')
 
 
 def get_apartment_image_data(df, marker_color=visualization.COLOR_RED):
