@@ -12,6 +12,8 @@ class ExperimentConfig(object):
         if isinstance(conf, str):
             conf = celldom.read_config(conf)
         self.conf = conf
+        self._chip_config = None
+        self._analysis_config = None
         self._validate()
 
     @property
@@ -112,10 +114,14 @@ class ExperimentConfig(object):
         return self._get_config('cytometer')
 
     def get_chip_config(self):
-        return chip_config.ChipConfig(self._get_config('chip'))
+        if self._chip_config is None:
+            self._chip_config = chip_config.ChipConfig(self._get_config('chip'))
+        return self._chip_config
 
     def get_analysis_config(self):
-        return analysis_config.AnalysisConfig(self._get_config('analysis'))
+        if self._analysis_config is None:
+            self._analysis_config = analysis_config.AnalysisConfig(self._get_config('analysis'))
+        return self._analysis_config
 
     def _validate(self):
         path_field_names = sorted(self.path_field_names)

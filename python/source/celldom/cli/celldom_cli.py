@@ -150,6 +150,19 @@ class Celldom(object):
         from celldom_app.overview import app
         app.run_server(debug=debug)
 
+    def run_array_analysis(self, experiment_config_path, output_dir):
+        """Run the apartment array analysis template notebook
+
+        Args:
+            experiment_config_path: Path to experiment configuration
+                (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
+            output_dir: Path to output directory; this is the `output_dir` given to `run_processor`
+                (e.g. /lab/data/celldom/output/20180820-G3-full)
+        """
+        params = dict(experiment_config_path=experiment_config_path, experiment_output_dir=output_dir)
+        path = _exec_nb('array_analysis.ipynb', output_dir, params)
+        print('Analysis complete; see results at "{}"'.format(path))
+
     def get_apartment_info(self, experiment_config_path, output_dir, keys):
         """Get apartment data for a specific set of "keys"
 

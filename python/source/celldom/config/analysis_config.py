@@ -15,6 +15,9 @@ class AnalysisConfig(object):
     def __contains__(self, key):
         return key in self.conf
 
+    def __setitem__(self, key, value):
+        self.conf[key] = value
+
 
 def get_analysis_config_by_name(name):
     """Load analysis configuration by name
