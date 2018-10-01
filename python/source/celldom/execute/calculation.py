@@ -167,6 +167,7 @@ def _calculate_apartment_growth_rates(experiment):
             raise ValueError(
                 'Apartment initial conditions filter "{}" did not match any apartment records -- '
                 'either none of these initial conditions occurred or the condition names are invalid'
+                .format(initial_conditions_filter)
             )
 
         # Compute boolean mask with length == len(df) where True indicates that the associated apartment matches
