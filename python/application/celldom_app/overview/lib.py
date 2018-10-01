@@ -19,6 +19,7 @@ def get_array_graph_figure(df, metric, enable_normalize, value_range=None, agg_f
             groups = df.groupby(date_field)
 
     for i, (k, g) in enumerate(groups):
+
         gp = g.pivot_table(
             index=['st_num'], columns=['apt_num'], values=metric,
             aggfunc=agg_func, fill_value=fill_value

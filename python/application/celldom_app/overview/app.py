@@ -12,10 +12,10 @@ import json
 import plotly
 import logging
 import glob
+from celldom.execute.analysis import add_experiment_date_groups, GROWTH_RATE_OBJ_FIELDS
 from celldom_app.overview import data
 from celldom_app.overview import config
 from celldom_app.overview import lib
-from celldom_app.overview import utils as app_utils
 
 logging.basicConfig(level=os.getenv('LOGLEVEL', 'INFO'))
 logger = logging.getLogger(__name__)
@@ -307,7 +307,7 @@ def get_page_summary():
     df_acq = df_acq.groupby(cfg.experimental_condition_fields).size().rename('num_raw_images')
 
     # Select fields from array data
-    df_arr = df_arr.set_index(cfg.experimental_condition_fields)[['median_growth_rate', 'num_apartments']]
+    df_arr = df_arr.set_index(cfg.experimental_condition_fields)[['mean_growth_rate', 'median_growth_rate', 'num_apartments']]
 
     # Merge acquisition summary and array data
     df = pd.concat([df_acq, df_arr], axis=1).reset_index()
@@ -322,6 +322,7 @@ def get_page_summary():
                     'summarizes the data collected for each one.'
                     '\n\n**Field Definitions**\n\n'
                     '- {}: Experimental conditions\n'
+                    '- **mean_growth_rate**: Mean 24hr growth rate estimate (log 2) across all apartments\n'
                     '- **median_growth_rate**: Median 24hr growth rate estimate (log 2) across all apartments\n'
                     '- **num_raw_images**: Number of raw, multi-apartment image files processed '
                     '(excluding any that had errors); **NOTE** There were {} raw images processed across all '
@@ -465,7 +466,8 @@ for page_name in PAGE_NAMES:
 
 def get_selected_growth_data(rows, selected_row_indices):
     df = pd.DataFrame([rows[i] for i in selected_row_indices])
-    for c in ['cell_counts', 'acq_ids', 'occupancies', 'confluence']:
+    # Deserialize any json objects encoded in execute.calculation.calculate_apartment_growth_rates
+    for c in GROWTH_RATE_OBJ_FIELDS:
         df[c] = df[c].apply(json.loads)
     return df
 
@@ -603,8 +605,13 @@ def update_apartments_table_selected_rows(click_data, array, selected_row_indice
 
     # Get indices where keys are equal, avoiding argwhere since results are grouped by element
     indices = list(np.flatnonzero(keys == key))
+    if len(indices) == 0:
+        logger.info('No apartment/growth rate data found for key "%s"', key)
     selected_row_indices.extend(indices)
-    return selected_row_indices
+
+    # De-duplicated selected indexes as it is possible to trigger this method multiple times with the same
+    # target array
+    return list(np.unique(selected_row_indices))
 
 
 @app.callback(
@@ -646,9 +653,9 @@ def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_t
 
     fig_data = []
 
-    # Iterate through each experimental condition based on median growth rate and add distribution figure
+    # Iterate through each experimental condition based on mean growth rate and add distribution figure
     groups = df.groupby(df.index)
-    keys = groups['growth_rate'].median().sort_values().index
+    keys = groups['growth_rate'].mean().sort_values().index
     for k in keys:
         name = k if isinstance(k, str) else ':'.join(k)
         g = groups.get_group(k)
@@ -662,7 +669,8 @@ def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_t
                 },
                 'meanline': {
                     'visible': True
-                }
+                },
+                'boxmean': True
             })
             fig_layout['xaxis'] = {'title': '24hr Growth Rate (log2)'}
         else:
@@ -719,7 +727,7 @@ def update_array_graph(array, metric, enable_normalize):
 
     def prep(d):
         array_key = tuple(array.split(':'))
-        return d.set_index(data.get_array_key_fields()).loc[array_key].copy()
+        return d.set_index(data.get_array_key_fields()).sort_index().loc[array_key].copy()
 
     if metric in ['cell_count', 'measurement_count', 'occupancy_chamber']:
         # Subset data to selected array TODO: choose data based on metric
@@ -727,10 +735,6 @@ def update_array_graph(array, metric, enable_normalize):
         df = prep(df)
         if len(df) == 0:
             return dict(data=[], layout={})
-        date_map = app_utils.group_dates(df['acq_datetime'], min_gap_seconds=cfg.min_measurement_gap_seconds)
-        df['acq_datetime_group'] = df['acq_datetime'].map(date_map)
-        df['elapsed_hours_group'] = df['acq_datetime_group'].map(
-            df.groupby('acq_datetime_group')['elapsed_hours'].min())
 
         # Metric-specific transformations
         if metric == 'measurement_count':

@@ -2,12 +2,18 @@ import re
 import pandas as pd
 import celldom
 from celldom.config import chip_config
+from celldom.config import analysis_config
 
 
 class ExperimentConfig(object):
 
     def __init__(self, conf):
+        # Load configuration if provided as path instead of deserialized object
+        if isinstance(conf, str):
+            conf = celldom.read_config(conf)
         self.conf = conf
+        self._chip_config = None
+        self._analysis_config = None
         self._validate()
 
     @property
@@ -84,6 +90,10 @@ class ExperimentConfig(object):
             )
         return ['acq_' + c for c in self.conf['groupings']['experimental_conditions']]
 
+    @property
+    def apartment_address_fields(self):
+        return self.experimental_condition_fields + ['apt_num', 'st_num']
+
     def _get_config(self, typ):
         if typ not in self.conf:
             raise ValueError('Experiment configuration does not have required property "{}"'.format(typ))
@@ -104,7 +114,14 @@ class ExperimentConfig(object):
         return self._get_config('cytometer')
 
     def get_chip_config(self):
-        return chip_config.ChipConfig(self._get_config('chip'))
+        if self._chip_config is None:
+            self._chip_config = chip_config.ChipConfig(self._get_config('chip'))
+        return self._chip_config
+
+    def get_analysis_config(self):
+        if self._analysis_config is None:
+            self._analysis_config = analysis_config.AnalysisConfig(self._get_config('analysis'))
+        return self._analysis_config
 
     def _validate(self):
         path_field_names = sorted(self.path_field_names)
@@ -174,7 +191,7 @@ def get_exp_config_by_name(name):
     exp_config = experiment_config.ExperimentConfig(exp_configuration_path)
 
     # Short version (provided by this function):
-    exp_config = experiment_config.get_experiment_configuration('experiment_example_01')
+    exp_config = experiment_config.get_exp_config_by_name('experiment_example_01')
     ```
 
     Args:

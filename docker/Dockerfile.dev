@@ -44,8 +44,13 @@ RUN pip install dash==0.21.1  \
     dash-table-experiments==0.6.0 \
     plotly
 
-# Install weights and biases in dev mode only
+##################
+# Dev Dependencies
+# All of the following are unnecessary in the production container
+RUN apt-get update && apt-get install -y nodejs npm
 RUN pip install wandb
+# /Dev Dependencies
+###################
 
 # Set useful development environment variables (override on run if necessary)
 ENV CELLDOM_REPO_DIR $CELLDOM_REPO_DIR

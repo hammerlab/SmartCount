@@ -26,13 +26,13 @@ def _nb_path(nb_name):
     return osp.join(celldom.get_repo_dir(), 'python', 'notebook', 'templates', nb_name)
 
 
-def _exec_nb(nb_name, data_dir, params, output_path=None):
+def _exec_nb(nb_name, data_dir, params, output_path=None, output_filename=None):
     import papermill as pm
     input_path = _nb_path(nb_name)
     if output_path is None:
         output_path = osp.join(data_dir, 'notebook')
         os.makedirs(output_path, exist_ok=True)
-        output_path = osp.join(output_path, osp.basename(input_path))
+        output_path = osp.join(output_path, output_filename or osp.basename(input_path))
 
     logger.info('Executing notebook "%s"', input_path)
     pm.execute_notebook(input_path, output_path, parameters=params)
@@ -149,6 +149,35 @@ class Celldom(object):
 
         from celldom_app.overview import app
         app.run_server(debug=debug)
+
+    def run_array_analysis(self, experiment_config_path, output_dir,
+                           apartment_initial_conditions=None,
+                           na_growth_rate_fill_value=None,
+                           nb_filename=None):
+        """Run the apartment array analysis template notebook
+
+        Args:
+            experiment_config_path: Path to experiment configuration
+                (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
+            output_dir: Path to output directory; this is the `output_dir` given to `run_processor`
+                (e.g. /lab/data/celldom/output/20180820-G3-full)
+            apartment_initial_conditions: Initial conditions (at time zero) of apartments as a comma separated
+                list of any number of the following: ['other', 'no_cell', 'single_cell', 'double_cell', 'triple_cell'];
+                Example: --apartment-initial-conditions=['no_cell','single_cell']
+                Default value is nothing, which means that no filters of any kind are applied
+            na_growth_rate_fill_value: Placeholder value for apartments with cell count data but either too few
+                data points for growth rate calculations or off-target initial conditions; default is nothing, which
+                means that NA growth rates are excluded from visualizations and analysis (another common choice is 0)
+            nb_filename: Name of notebook file to create (in `output_dir`); defaults to name of template notebook
+        """
+        params = dict(
+            experiment_config_path=experiment_config_path,
+            experiment_output_dir=output_dir,
+            apartment_initial_conditions=apartment_initial_conditions,
+            na_growth_rate_fill_value=na_growth_rate_fill_value
+        )
+        path = _exec_nb('array_analysis.ipynb', output_dir, params, output_filename=nb_filename)
+        print('Analysis complete; see results at "{}"'.format(path))
 
     def get_apartment_info(self, experiment_config_path, output_dir, keys):
         """Get apartment data for a specific set of "keys"
