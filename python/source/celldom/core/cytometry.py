@@ -6,6 +6,7 @@ import tempfile
 import pandas as pd
 import numpy as np
 import hashlib
+import re
 from skimage import io as sk_io
 from collections import OrderedDict
 from celldom import io as celldom_io
@@ -28,6 +29,7 @@ DEFAULT_CELL_STAT_NAMES = ['mean', 'std', 'p10', 'p50', 'p90']
 DEFAULT_STRING_SIZE = 64
 PATH_STRING_SIZE = 256
 ACQ_PROP_PREFIX = 'acq_'
+RELEASE_NUM_PATTERN = 'r\d+\.\d+'
 
 
 def _resolve_paths(config):
@@ -44,7 +46,13 @@ def _resolve_paths(config):
         # If it is a url, download it if not already cached
         elif location_type == 'url':
             url = location['location']
-            cache_path = osp.join('models', osp.basename(url))
+            release_number = url.split('/')[-2]
+            if re.match(RELEASE_NUM_PATTERN, release_number) is None:
+                raise ValueError(
+                    'Release number "{}" in url "{}" does not match required pattern "{}"'
+                    .format(release_number, url, RELEASE_NUM_PATTERN)
+                )
+            cache_path = osp.join('models', release_number, osp.basename(url))
             model_paths[model_name] = celldom_io.cache(url, cache_path)
         else:
             raise ValueError('Model location type "{}" not valid (should be "file" or "url")'.format(location_type))

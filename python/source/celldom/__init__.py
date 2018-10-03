@@ -78,7 +78,7 @@ def get_model_dir():
     This can be overriden by 'ENV_CELLDOM_MODEL_DIR' environment variable but if not set will
     default to $CELLDOM_DATA_DIR/model/$CELLDOM_VERSION
     """
-    return os.getenv(ENV_CELLDOM_MODEL_DIR, osp.join(get_data_dir(), 'model', get_version()))
+    return os.getenv(ENV_CELLDOM_MODEL_DIR, osp.join(get_data_dir(), 'model'))
 
 
 def get_repo_dir():
