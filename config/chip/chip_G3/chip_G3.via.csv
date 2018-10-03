@@ -1,9 +1,0 @@
-filename,file_size,file_attributes,region_count,region_id,region_shape_attributes,region_attributes
-chip_G3.png,37340,"{}",8,0,"{""name"":""rect"",""x"":202,""y"":52,""width"":24,""height"":46}","{""type"":""apt_num_1""}"
-chip_G3.png,37340,"{}",8,1,"{""name"":""rect"",""x"":24,""y"":151,""width"":24,""height"":42}","{""type"":""st_num_1""}"
-chip_G3.png,37340,"{}",8,2,"{""name"":""rect"",""x"":48,""y"":151,""width"":26,""height"":42}","{""type"":""st_num_2""}"
-chip_G3.png,37340,"{}",8,3,"{""name"":""point"",""cx"":212,""cy"":185}","{""type"":""marker_center""}"
-chip_G3.png,37340,"{}",8,4,"{""name"":""rect"",""x"":226,""y"":52,""width"":26,""height"":46}","{""type"":""apt_num_2""}"
-chip_G3.png,37340,"{}",8,5,"{""name"":""rect"",""x"":20,""y"":29,""width"":235,""height"":224}","{""type"":""chip_border""}"
-chip_G3.png,37340,"{}",8,6,"{""name"":""rect"",""x"":104,""y"":216,""width"":68,""height"":36}","{""type"":""component_trap""}"
-chip_G3.png,37340,"{}",8,7,"{""name"":""polygon"",""all_points_x"":[106,167,193,203,202,191,139,84,73,74,84],""all_points_y"":[40,40,65,91,144,168,216,168,142,90,62]}","{""type"":""component_chamber""}"
