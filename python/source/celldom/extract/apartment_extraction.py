@@ -57,17 +57,30 @@ def partition_around_marker(img, center, margins):
     return img
 
 
-def partition_digit_images(img, bounds):
+def partition_digit_images(img, bounds, rotation):
     """Extract digit images in a multi-digit image using the given x (i.e. column) bounds
 
     Args:
         img: Image containing multiple-digits
-        bounds: Sequence of (x-start, x-stop) tuples containing lateral boundaries of digits within
-            multi-digit images
+        bounds: Sequence of dictionaries containing the keys 'left', 'right', 'top', 'bottom' used
+            to slide digit images (values are offsets within entire number image)
+        rotation: Angle in degrees by which to rotate individual images
     Returns:
         List of individual digit images (with length equal to len(bounds))
     """
-    return [img[:, b[0]:b[1]] for b in bounds]
+    imgs = [img[b['top']:b['bottom'], b['left']:b['right']] for b in bounds]
+    if rotation:
+        dinfo = np.iinfo(img.dtype)
+        imgs = [
+            # Note that rotations are counter-clockwise in degrees and that results are float64 (and
+            # need to be converted back to provided type)
+            np.clip(
+                transform.rotate(i, rotation, preserve_range=True, resize=True),
+                dinfo.min, dinfo.max
+            ).astype(img.dtype)
+            for i in imgs
+        ]
+    return imgs
 
 
 def partition_chip(img, centers, chip_config, focus_model=None):
@@ -93,10 +106,12 @@ def partition_chip(img, centers, chip_config, focus_model=None):
             focus_score = focus_model.score(rgb2gray(apt_img))
 
         apt_num_img = partition_around_marker(img, center, chip_config['apt_num_margins'])
-        apt_num_digit_imgs = partition_digit_images(apt_num_img, chip_config['apt_num_digit_bounds'])
+        apt_num_digit_imgs = partition_digit_images(
+            apt_num_img, chip_config['apt_num_digit_bounds'], chip_config['apt_num_rotation'])
 
         st_num_img = partition_around_marker(img, center, chip_config['st_num_margins'])
-        st_num_digit_imgs = partition_digit_images(st_num_img, chip_config['st_num_digit_bounds'])
+        st_num_digit_imgs = partition_digit_images(
+            st_num_img, chip_config['st_num_digit_bounds'], chip_config['st_num_rotation'])
 
         partitions.append(dict(
             apt_id=i,

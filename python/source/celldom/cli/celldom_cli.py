@@ -197,6 +197,37 @@ class Celldom(object):
         pd.set_option('display.max_colwidth', 1000)
         return query.get_apartment_info(experiment_config_path, output_dir, keys)
 
+    def create_chip_configuration(self, annotation_csv, chip_name, marker_spacing, apt_num_range, st_num_range,
+                                  apt_num_rotation=0, st_num_rotation=0, single_digit_pad=3):
+        """Create a chip configuration from a VIA annotations export file (as csv)
+
+        Note the the configuration will be returned as a string (containing yaml document)
+
+        Args:
+            annotation_csv: Path to exported annotations; must contain bounding box and point annotations necessary
+                to create a chip configuration (see utils/config/chip/README.md for more details)
+            chip_name: Name of chip to be used (should be informative but does not need to comply with naming patterns)
+            marker_spacing: 2-tuple as (horizontal, vertical) distances in pixels between marker centers
+                (at 10x magnification)
+            apt_num_range: 2-tuple as (min, max) specifying the minimum and maximum apartment numbers present on a chip
+            st_num_range: 2-tuple as (min, max) specifying the minimum and maximum street numbers present on a chip
+            apt_num_rotation: Rotation in degrees of apartment numbers (default is 0)
+            st_num_rotation: Rotation in degrees of street numbers (default is 0)
+            single_digit_pad: Number of pixels to pad around individual digit images
+        Returns:
+            String representation of yaml configuration
+        """
+        from celldom.config import generator
+        import yaml
+        import io
+        config = generator.create_chip_configuration(
+            annotation_csv, chip_name, marker_spacing, apt_num_range, st_num_range,
+            apt_num_rotation=apt_num_rotation, st_num_rotation=st_num_rotation, single_digit_pad=single_digit_pad
+        )
+        sio = io.StringIO()
+        yaml.dump(config, sio)
+        return sio.getvalue()
+
 
 if __name__ == '__main__':
     # Register debugging handler

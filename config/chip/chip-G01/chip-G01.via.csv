@@ -1,0 +1,8 @@
+filename,file_size,file_attributes,region_count,region_id,region_shape_attributes,region_attributes
+chip-G01.png,26325,"{}",7,0,"{""name"":""rect"",""x"":7,""y"":4,""width"":185,""height"":193}","{""type"":""chip_border""}"
+chip-G01.png,26325,"{}",7,1,"{""name"":""rect"",""x"":17,""y"":137,""width"":25,""height"":17}","{""type"":""st_num_2""}"
+chip-G01.png,26325,"{}",7,2,"{""name"":""rect"",""x"":17,""y"":154,""width"":25,""height"":16}","{""type"":""st_num_1""}"
+chip-G01.png,26325,"{}",7,3,"{""name"":""rect"",""x"":156,""y"":136,""width"":25,""height"":18}","{""type"":""apt_num_2""}"
+chip-G01.png,26325,"{}",7,4,"{""name"":""rect"",""x"":156,""y"":154,""width"":25,""height"":17}","{""type"":""apt_num_1""}"
+chip-G01.png,26325,"{}",7,5,"{""name"":""polygon"",""all_points_x"":[99,86,75,65,53,42,35,29,26,25,26,29,34,42,51,61,75,83,91,99,108,114,138,146,156,165,171,173,173,172,168,162,155,146,135,123,114,106],""all_points_y"":[19,20,23,28,35,44,56,68,79,92,104,120,129,141,151,158,164,166,175,184,174,166,157,151,141,128,113,102,92,79,68,55,45,36,29,23,20,19]}","{""type"":""component_chamber""}"
+chip-G01.png,26325,"{}",7,6,"{""name"":""point"",""cx"":99,""cy"":183}","{""type"":""marker_center""}"

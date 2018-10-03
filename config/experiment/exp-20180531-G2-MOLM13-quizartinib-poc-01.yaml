@@ -1,6 +1,6 @@
-name: Test Experiment 1
-chip: {name: chip_01}
-cytometer: {name: cytometer_02}
+name: exp-20180531-G2-MOLM13-quizartinib-poc-01
+chip: {name: chip-G02}
+cytometer: {name: cytometer-02}
 acquisition:
   magnification: 10
   reflection: true

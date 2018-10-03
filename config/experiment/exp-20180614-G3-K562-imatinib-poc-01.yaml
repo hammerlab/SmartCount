@@ -1,6 +1,6 @@
-name: G3 Test Experiment
-chip: {name: chip_G3}
-cytometer: {name: cytometer_02}
+name: exp-20180614-G3-K562-imatinib-poc-01
+chip: {name: chip-G03}
+cytometer: {name: cytometer-02}
 analysis: {name: default}
 acquisition:
   magnification: 16
