@@ -58,7 +58,7 @@ class Celldom(object):
     def run_processor(
             self, experiment_config_path, data_file_patterns, output_dir,
             sample_rate=None, sample_count=None, max_failures=10, images_to_save=DEFAULT_IMAGES_TO_SAVE,
-            output_mode='w', enable_focus_scores=True):
+            output_mode='w', enable_focus_scores=True, cell_detection_threshold=None):
         """Run cell counting/cytometry for a given experiment configuration and set of raw data files
 
         Args:
@@ -81,6 +81,8 @@ class Celldom(object):
                 ``'r+'``: Similar to ``'a'``, but the output files must already exist.
             enable_focus_scores: Whether or not focus scores should be computed for each image (which is a relatively
                 expensive operation); default is True
+            cell_detection_threshold: Confidence threshold for cell detections; this should be a number between
+                0 and 1 and if not set, a default in celldom.config.cell_config.CellInferenceConfig will be used instead
         """
         # Get all matching files, deduplicate and sort
         files = []
@@ -126,7 +128,8 @@ class Celldom(object):
             max_failures=max_failures, dpf=dpf,
             # Cytometer arguments
             output_mode=output_mode,
-            enable_focus_scores=enable_focus_scores
+            enable_focus_scores=enable_focus_scores,
+            cell_detection_threshold=cell_detection_threshold
         )
         logger.info('Processing complete')
 

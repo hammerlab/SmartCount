@@ -1,20 +1,20 @@
-apt_margins: {bottom: 14, left: -92, right: 93, top: -179}
+apt_margins: {bottom: 15, left: -92, right: 93, top: -178}
 apt_num_digit_bounds:
-- {bottom: 35, left: 0, right: 25, top: 15}
-- {bottom: 21, left: 0, right: 25, top: 0}
+- {bottom: 35, left: 0, right: 27, top: 15}
+- {bottom: 21, left: 0, right: 27, top: 0}
 apt_num_digit_count: 2
-apt_num_margins: {bottom: -12, left: 57, right: 82, top: -47}
-apt_num_range: [0, 100]
+apt_num_margins: {bottom: -11, left: 56, right: 83, top: -46}
+apt_num_range: [0, 46]
 apt_num_rotation: -90
 components:
   chamber:
     boundary:
-    - [92, 15]
-    - [79, 16]
-    - [68, 19]
+    - [93, 16]
+    - [80, 17]
+    - [69, 19]
     - [58, 24]
-    - [46, 31]
-    - [35, 40]
+    - [46, 32]
+    - [36, 41]
     - [28, 52]
     - [22, 64]
     - [19, 75]
@@ -28,7 +28,7 @@ components:
     - [68, 160]
     - [76, 162]
     - [84, 171]
-    - [92, 180]
+    - [92, 181]
     - [101, 170]
     - [107, 162]
     - [131, 153]
@@ -45,15 +45,15 @@ components:
     - [139, 32]
     - [128, 25]
     - [116, 19]
-    - [107, 16]
-    - [99, 15]
+    - [107, 17]
+    - [93, 16]
 marker_spacing: {horizontal: 198, vertical: 198}
 name: G01
 st_num_digit_bounds:
-- {bottom: 33, left: 0, right: 25, top: 14}
-- {bottom: 20, left: 0, right: 25, top: 0}
+- {bottom: 35, left: 0, right: 27, top: 15}
+- {bottom: 21, left: 0, right: 27, top: 0}
 st_num_digit_count: 2
-st_num_margins: {bottom: -13, left: -82, right: -57, top: -46}
-st_num_range: [0, 100]
+st_num_margins: {bottom: -11, left: -83, right: -56, top: -46}
+st_num_range: [0, 31]
 st_num_rotation: -90
 

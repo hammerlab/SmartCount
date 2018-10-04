@@ -1,7 +1,7 @@
 name: exp-20180217-G1-K562-control-01
 chip: {name: chip-G01}
 cytometer: {name: cytometer-03}
-analysis: {name: default}
+analysis: {name: exp-20180217-G1-K562-control-01}
 acquisition:
   magnification: 16
   reflection: false
