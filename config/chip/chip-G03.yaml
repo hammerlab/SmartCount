@@ -1,0 +1,39 @@
+apt_margins: {bottom: 68, left: -192, right: 43, top: -156}
+apt_num_digit_bounds:
+- {bottom: 46, left: 0, right: 27, top: 0}
+- {bottom: 46, left: 21, right: 50, top: 0}
+apt_num_digit_count: 2
+apt_num_margins: {bottom: -87, left: -10, right: 40, top: -133}
+apt_num_range: [0, 57]
+apt_num_rotation: 0
+components:
+  chamber:
+    boundary:
+    - [86, 11]
+    - [147, 11]
+    - [173, 36]
+    - [183, 62]
+    - [182, 115]
+    - [171, 139]
+    - [119, 187]
+    - [64, 139]
+    - [53, 113]
+    - [54, 61]
+    - [64, 33]
+#  trap:
+#    boundary:
+#    - [84, 187]
+#    - [152, 187]
+#    - [152, 223]
+#    - [84, 223]
+marker_spacing: {horizontal: 260, vertical: 198}
+name: G03
+st_num_digit_bounds:
+- {bottom: 42, left: 0, right: 27, top: 0}
+- {bottom: 42, left: 21, right: 50, top: 0}
+st_num_digit_count: 2
+st_num_margins: {bottom: 8, left: -188, right: -138, top: -34}
+st_num_range: [0, 15]
+st_num_rotation: 0
+
+

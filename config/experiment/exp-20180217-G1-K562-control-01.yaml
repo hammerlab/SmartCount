@@ -1,0 +1,21 @@
+name: exp-20180217-G1-K562-control-01
+chip: {name: chip-G01}
+cytometer: {name: cytometer-03}
+analysis: {name: exp-20180217-G1-K562-control-01}
+acquisition:
+  magnification: 16
+  reflection: false
+metadata:
+  # Example file path: */2018.02.17 G1 35 K562 Test 2 17 hr 201802171700/BF_16X_St_018_Apt_012_F_000.tif
+  fields:
+    datetime:
+      regex: '[0-9]{12}'
+      format: '%Y%m%d%H%M'
+    hours: '[0-9]{1,3}'
+    cell_line: 'K562'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+  path_format: '.*/2018.02.17 G1 35 {cell_line} Test 2 {hours} hr {datetime}/BF_16X_St_{street}_Apt_{apartment}_F_000.tif'
+groupings:
+  experimental_conditions: [cell_line]
+

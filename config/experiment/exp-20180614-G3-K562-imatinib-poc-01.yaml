@@ -1,0 +1,27 @@
+name: exp-20180614-G3-K562-imatinib-poc-01
+chip: {name: chip-G03}
+cytometer: {name: cytometer-02}
+analysis: {name: default}
+acquisition:
+  magnification: 16
+  reflection: false
+metadata:
+  # Example file path: */_2018.06.14 EXP SUM Control 0.1uM with 5mL gravity/2018.06.14 White 3 Control/2018.06.14 White 3 Control 0 hr/BFF_16X_St_000_Apt_000_201806150024.tif
+  fields:
+    datetime:
+      regex: '[0-9]{12}'
+      format: '%Y%m%d%H%M'
+    pump: 'Elveflow|gravity'
+    color: 'Orange|Red|White|Pink|Green|Blue|Yellow'
+    condition: '1|3'
+    hours: '[0-9]{1,3}'
+    cohort: 'Control|[0-9\.]{1,}uM'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+  path_format: '.*/.*{pump}/.*/.* {color} {condition} {cohort} {hours} hr/BFF_16X_St_{street}_Apt_{apartment}_{datetime}.tif'
+groupings:
+  # This list should include all fields necessary to identify a set of values specific to an experimental condition
+  # *IMPORTANT* Combinations of these fields must correspond to distinct apt_num/st_num namespaces (which
+  # usually translates to defining individual chips)
+  experimental_conditions: [pump, color, condition, cohort]
+

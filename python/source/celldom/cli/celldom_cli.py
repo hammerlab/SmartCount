@@ -58,7 +58,7 @@ class Celldom(object):
     def run_processor(
             self, experiment_config_path, data_file_patterns, output_dir,
             sample_rate=None, sample_count=None, max_failures=10, images_to_save=DEFAULT_IMAGES_TO_SAVE,
-            output_mode='w', enable_focus_scores=True):
+            output_mode='w', enable_focus_scores=True, cell_detection_threshold=None):
         """Run cell counting/cytometry for a given experiment configuration and set of raw data files
 
         Args:
@@ -81,6 +81,8 @@ class Celldom(object):
                 ``'r+'``: Similar to ``'a'``, but the output files must already exist.
             enable_focus_scores: Whether or not focus scores should be computed for each image (which is a relatively
                 expensive operation); default is True
+            cell_detection_threshold: Confidence threshold for cell detections; this should be a number between
+                0 and 1 and if not set, a default in celldom.config.cell_config.CellInferenceConfig will be used instead
         """
         # Get all matching files, deduplicate and sort
         files = []
@@ -126,7 +128,8 @@ class Celldom(object):
             max_failures=max_failures, dpf=dpf,
             # Cytometer arguments
             output_mode=output_mode,
-            enable_focus_scores=enable_focus_scores
+            enable_focus_scores=enable_focus_scores,
+            cell_detection_threshold=cell_detection_threshold
         )
         logger.info('Processing complete')
 
@@ -196,6 +199,37 @@ class Celldom(object):
         pd.set_option('display.width', 1000)
         pd.set_option('display.max_colwidth', 1000)
         return query.get_apartment_info(experiment_config_path, output_dir, keys)
+
+    def create_chip_configuration(self, annotation_csv, chip_name, marker_spacing, apt_num_range, st_num_range,
+                                  apt_num_rotation=0, st_num_rotation=0, single_digit_pad=3):
+        """Create a chip configuration from a VIA annotations export file (as csv)
+
+        Note the the configuration will be returned as a string (containing yaml document)
+
+        Args:
+            annotation_csv: Path to exported annotations; must contain bounding box and point annotations necessary
+                to create a chip configuration (see utils/config/chip/README.md for more details)
+            chip_name: Name of chip to be used (should be informative but does not need to comply with naming patterns)
+            marker_spacing: 2-tuple as (horizontal, vertical) distances in pixels between marker centers
+                (at 10x magnification)
+            apt_num_range: 2-tuple as (min, max) specifying the minimum and maximum apartment numbers present on a chip
+            st_num_range: 2-tuple as (min, max) specifying the minimum and maximum street numbers present on a chip
+            apt_num_rotation: Rotation in degrees of apartment numbers (default is 0)
+            st_num_rotation: Rotation in degrees of street numbers (default is 0)
+            single_digit_pad: Number of pixels to pad around individual digit images
+        Returns:
+            String representation of yaml configuration
+        """
+        from celldom.config import generator
+        import yaml
+        import io
+        config = generator.create_chip_configuration(
+            annotation_csv, chip_name, marker_spacing, apt_num_range, st_num_range,
+            apt_num_rotation=apt_num_rotation, st_num_rotation=st_num_rotation, single_digit_pad=single_digit_pad
+        )
+        sio = io.StringIO()
+        yaml.dump(config, sio)
+        return sio.getvalue()
 
 
 if __name__ == '__main__':

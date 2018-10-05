@@ -6,7 +6,7 @@ from skimage import transform, exposure
 
 class MarkerDataset(mrcnn_dataset.RectLabelDataset):
 
-    def __init__(self, reflect_images=True, scale_factor=None):
+    def __init__(self, reflect_images=True, scale_factor=None, allow_empty_masks=False):
         """Dataset used to model markers in raw microscope images (multi-chamber)
 
         Args:
@@ -16,6 +16,7 @@ class MarkerDataset(mrcnn_dataset.RectLabelDataset):
         super(MarkerDataset, self).__init__()
         self.reflect_images = reflect_images
         self.scale_factor = scale_factor
+        self.allow_empty_masks = allow_empty_masks
 
     def initialize(self, image_paths):
         super(MarkerDataset, self).initialize(image_paths, marker_config.CLASS_NAMES, 'celldom-marker')
@@ -23,6 +24,11 @@ class MarkerDataset(mrcnn_dataset.RectLabelDataset):
     def load_mask(self, image_id):
         # Masks load as 3D array w/ shape (h, w, n_mask)
         mask, class_ids = super(MarkerDataset, self).load_mask(image_id)
+        if not self.allow_empty_masks and mask.size == 0:
+            raise ValueError(
+                'Mask for image id "{}" are empty; set allow_empty_masks '
+                'to True on dataset creation if this is intentional'.format(image_id)
+            )
         if self.reflect_images:
             mask = mask[:, ::-1, :]
         return mask, class_ids

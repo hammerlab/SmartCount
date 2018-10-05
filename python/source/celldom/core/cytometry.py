@@ -6,6 +6,7 @@ import tempfile
 import pandas as pd
 import numpy as np
 import hashlib
+import re
 from skimage import io as sk_io
 from collections import OrderedDict
 from celldom import io as celldom_io
@@ -28,6 +29,7 @@ DEFAULT_CELL_STAT_NAMES = ['mean', 'std', 'p10', 'p50', 'p90']
 DEFAULT_STRING_SIZE = 64
 PATH_STRING_SIZE = 256
 ACQ_PROP_PREFIX = 'acq_'
+RELEASE_NUM_PATTERN = 'r\d+\.\d+'
 
 
 def _resolve_paths(config):
@@ -44,7 +46,13 @@ def _resolve_paths(config):
         # If it is a url, download it if not already cached
         elif location_type == 'url':
             url = location['location']
-            cache_path = osp.join('models', osp.basename(url))
+            release_number = url.split('/')[-2]
+            if re.match(RELEASE_NUM_PATTERN, release_number) is None:
+                raise ValueError(
+                    'Release number "{}" in url "{}" does not match required pattern "{}"'
+                    .format(release_number, url, RELEASE_NUM_PATTERN)
+                )
+            cache_path = osp.join('models', release_number, osp.basename(url))
             model_paths[model_name] = celldom_io.cache(url, cache_path)
         else:
             raise ValueError('Model location type "{}" not valid (should be "file" or "url")'.format(location_type))
@@ -181,13 +189,14 @@ def get_image_key(image_type, image_field, properties):
 
 class Cytometer(object):
 
-    def __init__(self, config, data_dir, output_mode='w', enable_focus_scores=True):
+    def __init__(self, config, data_dir, output_mode='w', enable_focus_scores=True, cell_detection_threshold=None):
         self.config = config
         self.model_paths = _resolve_paths(config.get_cytometer_config())
         self.chip_config = config.get_chip_config()
         self.data_dir = data_dir
         self.output_mode = output_mode
         self.enable_focus_scores = enable_focus_scores
+        self.cell_detection_threshold = cell_detection_threshold
 
         self.datastore = None
         self.images = None
@@ -198,6 +207,17 @@ class Cytometer(object):
 
     def shutdown(self):
         self.__exit__(None, None, None)
+
+    def _get_cell_inference_config(self):
+        config = cell_config.CellInferenceConfig()
+        if self.cell_detection_threshold is not None:
+            if not (0 <= self.cell_detection_threshold <= 1):
+                raise ValueError(
+                    'Cell detection threshold must be between 0 and 1 (given {})'
+                    .format(self.cell_detection_threshold)
+                )
+            config.DETECTION_MIN_CONFIDENCE = self.cell_detection_threshold
+        return config
 
     def __enter__(self):
         import tensorflow as tf
@@ -227,7 +247,7 @@ class Cytometer(object):
             init_with='file', file=self.model_paths['marker']
         )
         self.cell_model = mrcnn_model.get_model(
-            'inference', cell_config.CellInferenceConfig(), tempfile.mkdtemp(),
+            'inference', self._get_cell_inference_config(), tempfile.mkdtemp(),
             init_with='file', file=self.model_paths['cell']
         )
         if self.enable_focus_scores:

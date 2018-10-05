@@ -44,29 +44,18 @@ in unwanted locations).  Also, these are the only annotations that can be polygo
     
 - Export the annotations as a csv file using ```Annotations -> Export Annotations (as csv)```.  It is also a
 good idea to then rename and move this file to somewhere memorable
-- Run the ```chip_config_generator.py``` script to convert the annotations to a chip config.
-    - To be able to run this, there are two options:
-        1. Run this in the provided docker container via a terminal in JupyterLab (recommended)
-        2. Run this on a local machine, after downloading and installing Anaconda
-        ([Anaconda Download](https://www.anaconda.com/download/#macos)) and doing the following:
-
-        ```
-        > conda create -n celldom python=3.6  # If using anaconda
-        > source activate celldom             # If using anaconda
-        > echo "$CELLDOM_REPO_DIR/python/source" > $(python -m site --user-site)/local.pth # Add celldom code to pypath
-        > pip install fire pyyaml pandas numpy   # Install necessary packages
-        ```
-
-    - Next, the script can be run like this:
+- Run the ```celldom create_chip_configuration``` command to convert the annotations to a chip config.  This
+should be in a JupyterLab terminal within the provided docker container; Example: 
 
     ```
-    # This will convert the exported annotations to a .yaml file in the celldom code repo
-    python chip_config_generator.py convert-annotations-to-config \
-    --annotation-csv=annotations/chip_G3.csv \ # This is the exported csv from the step above
-    --chip-name='chip_G3' \  # This name is used to create a yaml file in the config/chip folder
-    --save-result=True # Set this to False to see the resulting configuration instead of saving it
-    ```
+    # This command will print the configuration to stdout as a yaml document
+    celldom create_chip_configuration /lab/repos/celldom/config/chip/chip-G02/chip-G02.via.csv \
+    --chip_name=G02 \
+    --marker_spacing=[255,275] \
+    --apt_num_range=[0,46] \
+    --st_num_range=[0,31] 
     
-    For more context, when running this in JupyterLab the command and output should look like this:
+    # For convenience, this can either be pasted or redirected, for example ("!!" means rerun the last command):
+    !! > /lab/repos/celldom/config/chip/chip-G02.yaml
+    ```
 
-    ![Execution Example](https://drive.google.com/uc?export=download&id=1BOk6h20PXVjYtZgPK3aC9x0KfrTCd01p)

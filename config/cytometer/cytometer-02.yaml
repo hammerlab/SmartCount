@@ -1,0 +1,11 @@
+resources:
+  models:
+    marker:
+      type: url
+      location: 'https://storage.googleapis.com/celldom/models/r0.6/marker_model.h5'
+    digit:
+      type: url
+      location: 'https://storage.googleapis.com/celldom/models/r0.7/single_digit_model.h5'
+    cell:
+      type: url
+      location: 'https://storage.googleapis.com/celldom/models/r0.7/cell_model.h5'
