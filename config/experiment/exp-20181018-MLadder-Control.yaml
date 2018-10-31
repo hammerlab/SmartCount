@@ -1,0 +1,20 @@
+name: exp-20181018-MLadder-Control
+chip: {name: chip-ML01}
+cytometer: {name: cytometer-02}
+analysis: {name: default}
+acquisition:
+  magnification: 10
+  reflection: true
+metadata:
+  # Example file path: */MLadder-Chip5-MultiDay/20181018-Mladder-MOLM-Day1-Chip5/BF_ST_000_APT_012_20181018103634.tif
+  fields:
+    datetime:
+      regex: '[0-9]{14}'
+      format: '%Y%m%d%H%M%S'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+    prefix: 'BF'
+  path_format: '.*/.*/{prefix}_ST_{street}_APT_{apartment}_{datetime}.tif'
+groupings:
+  experimental_conditions: [prefix]
+
