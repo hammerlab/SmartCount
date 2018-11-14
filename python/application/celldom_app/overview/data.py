@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 cfg = None
 image_store = None
-cache_dir = None
+output_dir = None
 cache = {}
 
 KEY_GROWTH_DATA = 'growth_data'
@@ -39,14 +39,14 @@ def save(overwrite=False):
     for k in SAVE_KEYS:
         if k not in cache:
             continue
-        f = osp.join(cache_dir, k + '.h5')
+        f = osp.join(output_dir, k + '.h5')
         if not osp.exists(f) or overwrite:
             logger.info('Saving cached object "%s" to path "%s"', k, f)
             cache[k].to_hdf(f, key='data')
 
 
 def restore():
-    for f in glob.glob(osp.join(cache_dir, '*.h5')):
+    for f in glob.glob(osp.join(output_dir, '*.h5')):
         k = osp.basename(f).split('.')[0]
         if k in SAVE_KEYS:
             logger.info('Loading cached object "%s" from path "%s"', k, f)
@@ -111,17 +111,22 @@ def _prep(experiment, df):
     return calculation.add_measurement_times(experiment, df)
 
 
+def get_output_path(path):
+    """Get relative path from app output path (i.e. $EXP_DATA/app/overview)"""
+    return osp.join(output_dir, path)
+
+
 def initialize(data_dir):
     global cfg
     global image_store
     cfg = config.get()
 
-    global cache_dir
+    global output_dir
     logger.info('Initializing app data for data directory "%s"', data_dir)
 
-    cache_dir = osp.join(data_dir, 'app', 'overview')
-    if not osp.exists(cache_dir):
-        os.makedirs(cache_dir, exist_ok=True)
+    output_dir = osp.join(data_dir, 'app', 'overview')
+    if not osp.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
     restore()
 
     experiment = Experiment(cfg.exp_config, data_dir=data_dir)
@@ -206,6 +211,7 @@ def get_apartment_image_data(df, marker_color=visualization.COLOR_RED):
         row = {key_fields[i]: k[i] for i in range(len(k))}
         row['n'] = len(g)
         row['encoded_images'] = [base64_encode_image(img) for img in g['image']]
+        row['images'] = g['image'].values
         row['dates'] = g['acq_datetime'].tolist()
         row['cell_counts'] = g['cell_count'].tolist()
         res.append(row)

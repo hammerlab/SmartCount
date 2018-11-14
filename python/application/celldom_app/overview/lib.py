@@ -1,5 +1,10 @@
+import os.path as osp
+import os
+import re
 import pandas as pd
 import numpy as np
+from celldom_app.overview import data
+from celldom import io as celldom_io
 
 
 def get_array_graph_figure(df, metric, enable_normalize, value_range=None, agg_func=np.median, fill_value=None,
@@ -69,3 +74,16 @@ def get_array_graph_figure(df, metric, enable_normalize, value_range=None, agg_f
         fig_layout['sliders'] = sliders
 
     return dict(data=fig_data, layout=fig_layout)
+
+
+def export_apartment_images(identifier, images, titles):
+    # Replace non-alnum with hyphen in identifier
+    identifier = re.sub(r'\W+', '-', identifier)
+
+    # Create path to export files (just tif for now)
+    path = data.get_output_path(osp.join('export', 'apartment'))
+    if not osp.exists(path):
+        os.makedirs(path, exist_ok=True)
+    path = osp.join(path, identifier + '.tif')
+    celldom_io.save_tiff(path, images, titles)
+    return path

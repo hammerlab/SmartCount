@@ -14,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git vim
 RUN pip install keras==2.1.6
 RUN pip install scikit-image==0.14.0
 
-RUN pip install jupyterlab matplotlib pandas plotnine Cython papermill tables retrying fire moviepy
+RUN pip install jupyterlab matplotlib pandas plotnine Cython papermill tables retrying fire moviepy tifffile
 
 # Opencv installation
 RUN apt-get install -y libsm6 libxext6 libfontconfig1 libxrender1
