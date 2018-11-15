@@ -1,6 +1,7 @@
 import os
 import os.path as osp
 import celldom
+import numpy as np
 from urllib import request
 from retrying import retry
 import logging
@@ -35,3 +36,12 @@ def cache(url, cache_path):
         download(url, path)
         logger.info('Download complete')
     return path
+
+
+def save_tiff(path, images, titles):
+    """Save ImageJ compatible tiff with slice labels"""
+    from tifffile import imsave
+    from cvutils.imagej import utils as ijutils
+    img = np.stack(images, axis=0)
+    tags = ijutils.get_imagej_tags({'Labels': titles})
+    imsave(path, img, imagej=True, extratags=tags)

@@ -11,7 +11,7 @@ def _default_components_data(chip_config):
     res = []
     if 'components' in chip_config:
         for component in chip_config['components'].keys():
-            res.append(dict(component=component, occupancy=0))
+            res.append(dict(component=component, occupancy=0.0))
     return res
 
 
@@ -121,15 +121,15 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
             assert component_masks.shape[-1] == in_poly.sum(), \
                 'Expecting {} masks, found {}'.format(in_poly.sum(), component_masks.shape[-1])
 
-            occupancy = 0
+            occupancy = 0.0
             component_area = chip_config.get_component_area(component)
             if component_masks.size > 0:
                 # Fill holes up to 1% of component area
-                occupancy = remove_small_holes(
+                occupancy = float(remove_small_holes(
                     binary_closing(component_masks.max(axis=-1)),
                     area_threshold=max(int(component_area*.01), 8)
-                ).sum()
-            occupancy = np.clip(occupancy / component_area, 0, 1)
+                ).sum())
+            occupancy = np.clip(occupancy / component_area, 0.0, 1.0)
             components.append(dict(component=component, occupancy=occupancy))
 
             # Mask Debugging

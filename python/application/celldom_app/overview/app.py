@@ -178,16 +178,27 @@ def get_page_apartments():
                                 id='apartment-dropdown',
                                 placeholder='Choose apartment (must be selected in table first)'
                             ),
-                            style={'display': 'inline-block', 'width': '75%'}
+                            style={'display': 'inline-block', 'width': '60%'}
+                        ),
+                        html.Div(
+                            html.Button(
+                                'Export',
+                                id='export-apartment-images',
+                                style={'width': '100%', 'height': '35px', 'line-height': '18px'}
+                            ),
+                            style={
+                                'display': 'inline-block', 'width': '20%',
+                                'vertical-align': 'top', 'padding-top': '1px'
+                            }
                         ),
                         html.Div(
                             dcc.Checklist(
-                                options=[{'label': 'Show Cell Markers', 'value': 'enabled'}],
+                                options=[{'label': 'Show Markers', 'value': 'enabled'}],
                                 values=['enabled'],
                                 id='enable-cell-marker'
                             ),
                             style={
-                                'display': 'inline-block', 'width': '25%',
+                                'display': 'inline-block', 'width': '20%',
                                 'vertical-align': 'top', 'padding-top': '4px'
                             }
                         ),
@@ -201,7 +212,8 @@ def get_page_apartments():
                 )
             ],
             className='row'
-        )
+        ),
+        html.Div(id='null1', style={'display': 'none'})
     ]
 
 
@@ -502,12 +514,7 @@ def update_apartment_dropdown_options(selected_row_indices, rows):
     return options
 
 
-@app.callback(
-    Output('apartment-animation', 'children'),
-    [Input('apartment-dropdown', 'value'), Input('enable-cell-marker', 'values')],
-    [State('table-apartments-data', 'selected_row_indices'), State('table-apartments-data', 'rows')]
-)
-def update_apartment_animations(selected_apartment, show_cell_marker, selected_row_indices, rows):
+def get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows):
     if not selected_row_indices or not rows or not selected_apartment:
         return None
     # Get growth data for all selected apartments (in table)
@@ -517,10 +524,10 @@ def update_apartment_animations(selected_apartment, show_cell_marker, selected_r
     mask = df.apply(data.get_apartment_key, axis=1) == selected_apartment
     if not np.any(mask):
         logger.error('Failed to find growth data for apartment %s (this should not be possible)', selected_apartment)
-        return []
+        return None
     if np.sum(mask) > 1:
         logger.error('Apartment key %s matches multiple table rows (this should not be possible)', selected_apartment)
-        return []
+        return None
 
     # Pass one-row data frame to image data processor
     df = data.get_apartment_image_data(
@@ -529,7 +536,19 @@ def update_apartment_animations(selected_apartment, show_cell_marker, selected_r
     )
     if selected_apartment not in df.index:
         logger.error('Apartment image data does not contain apartment %s', selected_apartment)
-    r = df.loc[selected_apartment]
+        return None
+    return df.loc[selected_apartment]
+
+
+@app.callback(
+    Output('apartment-animation', 'children'),
+    [Input('apartment-dropdown', 'value'), Input('enable-cell-marker', 'values')],
+    [State('table-apartments-data', 'selected_row_indices'), State('table-apartments-data', 'rows')]
+)
+def update_apartment_animations(selected_apartment, show_cell_marker, selected_row_indices, rows):
+    r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows)
+    if r is None:
+        return None
 
     children = []
     for i in range(r['n']):
@@ -545,6 +564,25 @@ def update_apartment_animations(selected_apartment, show_cell_marker, selected_r
         ))
     return children
 
+
+@app.callback(
+    Output('null1', 'children'),
+    [Input('export-apartment-images', 'n_clicks')],
+    [
+        State('apartment-dropdown', 'value'),
+        State('enable-cell-marker', 'values'),
+        State('table-apartments-data', 'selected_row_indices'),
+        State('table-apartments-data', 'rows')
+    ]
+)
+def export_apartment_animations(n_clicks, selected_apartment, show_cell_marker, selected_row_indices, rows):
+    r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows)
+    if r is None:
+        return None
+    titles = ['{} - {}'.format(r['dates'][i], r['cell_counts'][i]) for i in range(r['n'])]
+    path = lib.export_apartment_images(selected_apartment, r['images'].tolist(), titles)
+    logger.info('Saved apartment (%s) images to path %s', selected_apartment, path)
+    
 
 @app.callback(
     Output('graph-growth-data', 'figure'),
