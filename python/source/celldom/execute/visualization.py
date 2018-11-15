@@ -70,7 +70,7 @@ def process_results(apt_data, cell_data, exp_cond_fields, cell_marker_color):
     keys = ['acq_id', 'apt_id']
 
     # Of all the apt/st images, choose the one with best focus (regardless of raw file it came from)
-    apt_data = apt_data.groupby(exp_cond_fields + ['st_num', 'apt_num', 'acq_datetime']) \
+    apt_data = apt_data.groupby(exp_cond_fields + ['st_num', 'apt_num', 'acq_datetime', 'elapsed_hours_group']) \
         .apply(lambda g: g[['apt_image', 'focus_score', 'acq_id', 'apt_id']].sort_values('focus_score').iloc[0]) \
         .reset_index().set_index(keys)
 

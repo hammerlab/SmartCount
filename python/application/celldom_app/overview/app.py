@@ -8,7 +8,6 @@ import json
 import pandas as pd
 import numpy as np
 import os
-import json
 import plotly
 import logging
 import glob
@@ -83,24 +82,12 @@ def get_header_layout():
     )
 
 
-def get_array_data():
-    return data.get_array_data()
-
-
-def get_acquisition_data():
-    return data.get_acquisition_data()
-
-
-def get_apartment_data():
-    return data.get_growth_data()
-
-
 def get_page_apartments():
-    df = get_apartment_data()
+    df = data.get_apartment_summary_data()
 
-    fields = data.get_apartment_key_fields() + [
-        'growth_rate', 'min_cell_count', 'max_cell_count', 'first_count', 'first_date', 'elapsed_hours_min', 'n'
-    ]
+    fields = data.get_apartment_key_fields()
+    fields += ['growth_rate', 'min_count', 'max_count', 'initial_condition', 'n']
+    fields += df.filter(regex='^tz_count_.*').columns.tolist()
 
     # TODO: Apply filters on first_count and elapsed_hours_min
     return [
@@ -220,19 +207,19 @@ def get_page_apartments():
 def _get_array_metrics():
     df = data.get_apartment_data()
     metrics = [
-        {'label': 'Number of Measurements', 'value': 'measurement_count'},
-        {'label': 'Cell Count', 'value': 'cell_count'},
         {'label': 'Growth Rate (24hr log2)', 'value': 'growth_rate'},
-        {'label': 'Chamber Occupancy Percentage', 'value': 'occupancy_chamber'}
+        {'label': 'Number of Measurements', 'value': 'num_measurements'},
+        {'label': 'Cell Count', 'value': cfg.cell_count_field},
+        {'label': 'Chamber Occupancy Percentage', 'value': cfg.occupancy_field}
     ]
-    return [m for m in metrics if m['value'] in df or m['value'] in ['measurement_count', 'growth_rate']]
+    return [m for m in metrics if m['value'] in df or m['value'] in ['growth_rate']]
 
 
 ARRAY_METRICS = _get_array_metrics()
 
 
 def get_page_arrays():
-    df = get_array_data()
+    df = data.get_array_data()
     return [
         html.Div(id='table-info-arrays', style={'float': 'right'}),
         html.Details([
@@ -281,7 +268,7 @@ def get_page_arrays():
                         id='array-metric-dropdown',
                         placeholder='Choose metric to view data for',
                         options=ARRAY_METRICS,
-                        value='cell_count',
+                        value=ARRAY_METRICS[0]['value'],
                         clearable=False,
                         searchable=False
                     ),
@@ -311,8 +298,8 @@ def get_page_arrays():
 
 
 def get_page_summary():
-    df_acq = get_acquisition_data()
-    df_arr = get_array_data()
+    df_acq = data.get_acquisition_data()
+    df_arr = data.get_array_data()
     n_raw_files = len(df_acq)
 
     # Count raw files processed for each experimental condition
@@ -478,9 +465,9 @@ for page_name in PAGE_NAMES:
 
 def get_selected_growth_data(rows, selected_row_indices):
     df = pd.DataFrame([rows[i] for i in selected_row_indices])
-    # Deserialize any json objects encoded in execute.calculation.calculate_apartment_growth_rates
+    # Deserialize any json objects encoded in execute.view.get_apartment_summary_view
     for c in GROWTH_RATE_OBJ_FIELDS:
-        df[c] = df[c].apply(json.loads)
+        df[c] = df[c].apply(lambda x: pd.read_json(x, typ='series').to_dict())
     return df
 
 
@@ -490,7 +477,7 @@ def get_selected_growth_data(rows, selected_row_indices):
     [State('code-apartments', 'value')]
 )
 def update_apartment_table(_, code):
-    df = get_apartment_data()
+    df = data.get_apartment_summary_data()
     if code:
         logger.info('Applying custom code to apartment data:\n%s', code)
         local_vars = {'df': df}
@@ -552,7 +539,7 @@ def update_apartment_animations(selected_apartment, show_cell_marker, selected_r
 
     children = []
     for i in range(r['n']):
-        title = '{} - {}'.format(r['dates'][i], r['cell_counts'][i])
+        title = 'H{} D{} C{}'.format(r['hours'][i], r['dates'][i], r['cell_counts'][i])
         children.append(html.Div([
                 html.Div(title, style={'text-align': 'center'}),
                 html.Img(
@@ -575,11 +562,14 @@ def update_apartment_animations(selected_apartment, show_cell_marker, selected_r
         State('table-apartments-data', 'rows')
     ]
 )
-def export_apartment_animations(n_clicks, selected_apartment, show_cell_marker, selected_row_indices, rows):
+def export_apartment_animations(_, selected_apartment, show_cell_marker, selected_row_indices, rows):
     r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows)
     if r is None:
         return None
-    titles = ['{} - {}'.format(r['dates'][i], r['cell_counts'][i]) for i in range(r['n'])]
+    titles = [
+        'H{} D{} C{}'.format(r['hours'][i], r['dates'][i], r['cell_counts'][i])
+        for i in range(r['n'])
+    ]
     path = lib.export_apartment_images(selected_apartment, r['images'].tolist(), titles)
     logger.info('Saved apartment (%s) images to path %s', selected_apartment, path)
     
@@ -599,23 +589,29 @@ def update_apartment_growth_graph(selected_row_indices, rows):
     fig_data = []
 
     for i, r in df.iterrows():
-        tsct = pd.Series({pd.to_datetime(k): v for k, v in r['cell_counts'].items()}).sort_index()
-        tso = pd.Series({pd.to_datetime(k): v for k, v in r['occupancies'].items()}).sort_index()
-        tsconf = pd.Series({pd.to_datetime(k): v for k, v in r['confluence'].items()}).sort_index()
+        tsct = pd.Series(r['cell_counts']).sort_index()
+        tshr = pd.Series(r['hours']).sort_index()
+        tsdt = pd.Series(r['dates']).sort_index()
+        tso = pd.Series(r['occupancies']).sort_index()
+        tsconf = pd.Series(r['confluence']).sort_index()
         fig_data.append({
-            'x': tsct.index,
+            'x': tshr.values,
             'y': tsct.values,
             'name': data.get_apartment_key(r),
             'type': 'line',
             'marker': {'symbol': ['circle-open' if v else 'circle' for v in tsconf.values]},
-            'text': ['Occupancy: {:.0f}%'.format(100*v) for v in tso.values]
+            'text': [
+                'Occupancy: {:.0f}%<br>Date: {}'.format(100*tso.loc[dt], tsdt.loc[dt])
+                for dt in tsct.index
+            ]
         })
     fig_layout = {
         'title': 'Apartment Cell Counts',
         'margin': GRAPH_GROWTH_DATA_MARGINS,
-        'xaxis': {'title': 'Acquisition Date'},
+        'xaxis': {'title': 'Acquisition Hour'},
         'yaxis': {'title': 'Number of Cells'},
-        'showlegend': True
+        'showlegend': True,
+        'hovermode': 'closest'
     }
     return {'data': fig_data, 'layout': fig_layout}
 
@@ -677,7 +673,7 @@ def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_t
     keys = pd.DataFrame(rows).iloc[selected_row_indices].set_index(fields).index.unique()
 
     # Subset growth data to only experimental conditions selected
-    df = get_apartment_data()
+    df = data.get_apartment_summary_data()
     df = df.set_index(fields).loc[keys]
 
     # If plot type not explicitly set, use default based on number of distributions in graph
@@ -767,7 +763,23 @@ def update_array_graph(array, metric, enable_normalize):
         array_key = tuple(array.split(':'))
         return d.set_index(data.get_array_key_fields()).sort_index().loc[array_key].copy()
 
-    if metric in ['cell_count', 'measurement_count', 'occupancy_chamber']:
+    def one_or_error(v):
+        if len(v) > 1:
+            raise ValueError('Found multiple values in pivot: {}'.format(v))
+        return v[0]
+
+    if metric == 'growth_rate':
+        df = data.get_apartment_summary_data()
+        df = prep(df)
+        if len(df) == 0:
+            return dict(data=[], layout={})
+        fig = lib.get_array_graph_figure(
+            df, 'growth_rate', enable_normalize,
+            fill_value=None, agg_func=one_or_error
+        )
+        fig['layout']['title'] = title
+        return fig
+    elif metric in [cfg.cell_count_field, cfg.occupancy_field, 'num_measurements']:
         # Subset data to selected array TODO: choose data based on metric
         df = data.get_apartment_data()
         df = prep(df)
@@ -775,40 +787,21 @@ def update_array_graph(array, metric, enable_normalize):
             return dict(data=[], layout={})
 
         # Metric-specific transformations
-        if metric == 'measurement_count':
-            df['measurement_count'] = 1
-        elif metric == 'occupancy_chamber':
-            df['occupancy_chamber'] = df['occupancy_chamber'] * 100
+        if metric == cfg.occupancy_field:
+            df[metric] = df[metric] * 100
 
         # Pivot configuration
-        if metric == 'cell_count':
-            agg_func, fill_value, value_range = np.median, cfg.array_cell_count_fill, None
-        elif metric == 'measurement_count':
-            agg_func, fill_value, value_range = np.sum, 0, (0, 5)
+        if metric == cfg.cell_count_field:
+            agg_func, fill_value, value_range = one_or_error, cfg.array_cell_count_fill, None
+        elif metric == 'num_measurements':
+            agg_func, fill_value, value_range = one_or_error, 0, (0, 5)
         else:
-            agg_func, fill_value, value_range = np.median, None, None
+            agg_func, fill_value, value_range = one_or_error, None, None
 
         fig = lib.get_array_graph_figure(
             df, metric, enable_normalize,
             date_field='acq_datetime_group', elapsed_field='elapsed_hours_group',
             fill_value=fill_value, agg_func=agg_func, value_range=value_range
-        )
-        fig['layout']['title'] = title
-        return fig
-    elif metric == 'growth_rate':
-        df = data.get_growth_data()
-        df = prep(df)
-        if len(df) == 0:
-            return dict(data=[], layout={})
-
-        def agg_func(v):
-            if len(v) > 1:
-                return np.nan
-            return v[0]
-
-        fig = lib.get_array_graph_figure(
-            df, 'growth_rate', enable_normalize,
-            fill_value=None, agg_func=agg_func
         )
         fig['layout']['title'] = title
         return fig
