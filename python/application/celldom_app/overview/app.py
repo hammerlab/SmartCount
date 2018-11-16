@@ -374,7 +374,8 @@ def get_page_summary():
                     dcc.Dropdown(
                         options=[
                             {'label': 'Box', 'value': 'box'},
-                            {'label': 'Histogram', 'value': 'histogram'},
+                            {'label': 'Histogram (Count)', 'value': 'histogram'},
+                            {'label': 'Histogram (Percent)', 'value': 'histogram_percent'},
                             {'label': 'Violin', 'value': 'violin'}
                         ],
                         placeholder='Plot Type',
@@ -708,17 +709,27 @@ def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_t
                 'boxmean': True
             })
             fig_layout['xaxis'] = {'title': '24hr Growth Rate (log2)'}
-        else:
+        elif 'histogram' in plot_type:
+            histnorm = plot_type.split('_')
+            histnorm = histnorm[1] if len(histnorm) > 1 else ''
             fig_data.append({
                 'x': g['growth_rate'].clip(*cfg.growth_rate_range),
                 'name': name,
                 'type': 'histogram',
+                'histnorm': histnorm,
                 'xbins': {'start': cfg.growth_rate_range[0], 'end': cfg.growth_rate_range[1], 'size': .05},
                 'opacity': .3
             })
             fig_layout['barmode'] = 'overlay'
             fig_layout['xaxis'] = {'title': '24hr Growth Rate (log2)'}
-            fig_layout['yaxis'] = {'title': 'Number of Apartments'}
+            if histnorm == '':
+                fig_layout['yaxis'] = {'title': 'Number of Apartments'}
+            elif histnorm == 'percent':
+                fig_layout['yaxis'] = {'title': 'Percentage of Apartments'}
+            else:
+                fig_layout['yaxis'] = {'title': ''}
+        else:
+            raise ValueError('Plot type "{}" not yet supported'.format(plot_type))
     return {'data': fig_data, 'layout': fig_layout}
 
 
