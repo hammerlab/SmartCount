@@ -58,7 +58,7 @@ class Celldom(object):
     def run_processor(
             self, experiment_config_path, data_file_patterns, output_dir,
             sample_rate=None, sample_count=None, max_failures=10, images_to_save=DEFAULT_IMAGES_TO_SAVE,
-            output_mode='w', enable_focus_scores=True, cell_detection_threshold=None):
+            output_mode='w', enable_focus_scores=False, cell_detection_threshold=None):
         """Run cell counting/cytometry for a given experiment configuration and set of raw data files
 
         Args:
