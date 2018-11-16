@@ -136,17 +136,13 @@ def get_apartment_view(experiment, acquisition_data, cell_data):
     assert n == len(df), 'Measurement count addition resulted in a loss of records'
 
     # Sum cell counts by apartment for combinations of component and cell type
-    def summarize(g):
-        gs = g.groupby(['type', 'component']).size()
-        gs.index = [
-            get_cell_count_field(i[0].replace('is_type_', ''), i[1].replace('in_', ''))
-            for i in gs.index
-        ]
-        return gs
     df_ct = df_cell.assign(
-        type=df_cell.filter(regex='^is_type_.*').idxmax(axis=1),
-        component=df_cell.filter(regex='^in_.*').idxmax(axis=1)
-    ).groupby(['acq_id', 'apt_id']).apply(summarize).reset_index()
+        type=df_cell.filter(regex='^is_type_.*').rename(columns=lambda c: c.replace('is_type_', '')).idxmax(axis=1),
+        component=df_cell.filter(regex='^in_.*').rename(columns=lambda c: c.replace('in_', '')).idxmax(axis=1)
+    )
+    df_ct = df_ct.groupby(['acq_id', 'apt_id', 'type', 'component']).size().unstack(['type', 'component']).fillna(0)
+    df_ct.columns = [get_cell_count_field(*c) for c in df_ct]
+    df_ct = df_ct.reset_index()
 
     # Merge counts back into original apartment data
     df = pd.merge(df, df_ct, on=['acq_id', 'apt_id'], how='left')
@@ -168,22 +164,19 @@ def get_apartment_view(experiment, acquisition_data, cell_data):
 
     # Add apartment classifications
     init_cond_field = get_cell_count_field(**analysis_config.apartment_classification_cell_class)
+    init_cond = df[df['elapsed_hours_group'] == 0]\
+        .set_index(apt_addr_fields)[init_cond_field].rename('initial_condition')
+    assert init_cond.index.is_unique, 'Found multiple measurements for time zero data'
+    assert init_cond.notnull().all(), 'Time zero count should never be null'
+    init_cond = init_cond.astype(int).map({
+            0: 'no_cell',
+            1: 'single_cell',
+            2: 'double_cell',
+            3: 'triple_cell'
+        }).fillna('many_cells').reset_index()
+    df = pd.merge(df, init_cond, on=apt_addr_fields, how='left')
+    df['initial_condition'] = df['initial_condition'].fillna('no_time_zero_data')
 
-    def classify(g):
-        cts = g[g['elapsed_hours_group'] == 0][init_cond_field]
-        assert len(cts) <= 1, 'Found multiple measurements for time zero (data = {})'.format(cts)
-        if len(cts) == 0:
-            initial_condition = 'no_time_zero_data'
-        else:
-            initial_condition = {
-                0: 'no_cell',
-                1: 'single_cell',
-                2: 'double_cell',
-                3: 'triple_cell'
-            }.get(cts.iloc[0], 'many_cells')
-        g['initial_condition'] = initial_condition
-        return g
-    df = df.groupby(apt_addr_fields, group_keys=False).apply(classify)
     return df
 
 
@@ -203,10 +196,13 @@ def get_apartment_summary_view(experiment, acquisition_data, apartment_data):
         occupancy_threshold=analysis_config.confluence_detection_threshold
     )
 
+    # Copy original growth rate data so that it is available in addition to any filtered/transformed values
+    df['growth_rate_raw'] = df['growth_rate']
+
     cond_filter = analysis_config.apartment_summary_initial_condition
     if cond_filter:
         apt_idx = df_apt[df_apt['initial_condition'].isin(cond_filter)]\
-            .set_index(apt_addr_fields).index.unique()
+            .set_index(apt_addr_fields).index.drop_duplicates()
         if len(apt_idx) == 0:
             raise ValueError(
                 'Apartment initial conditions filter "{}" did not match any apartment records -- '

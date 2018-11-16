@@ -5,7 +5,7 @@ apartment_classification:
   cell_class: {type: any, component: chamber}
 apartment_summary:
   cell_class: {type: any, component: chamber}
-  initial_condition: []
+  initial_condition: [single_cell]
 confluence_detection:
   component: chamber
   threshold: .5

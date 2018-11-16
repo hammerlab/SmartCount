@@ -61,14 +61,6 @@ class AppConfig(object):
     @property
     def force_view_calculation(self):
         return os.getenv(ENV_APP_FORCE_VIEW_CALCULATION, 'false').lower() == 'true'
-    
-    @property
-    def cell_count_field(self):
-        return view.get_cell_count_field(**self.analysis_config.apartment_summary_cell_class)
-
-    @property
-    def occupancy_field(self):
-        return view.get_occupancy_field(self.analysis_config.confluence_detection_component)
 
     @property
     def app_output_dir(self):

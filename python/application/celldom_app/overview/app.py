@@ -209,8 +209,9 @@ def _get_array_metrics():
     metrics = [
         {'label': 'Growth Rate (24hr log2)', 'value': 'growth_rate'},
         {'label': 'Number of Measurements', 'value': 'num_measurements'},
-        {'label': 'Cell Count', 'value': cfg.cell_count_field},
-        {'label': 'Chamber Occupancy Percentage', 'value': cfg.occupancy_field}
+        {'label': 'Cell Count (Chamber)', 'value': 'cell_count_any_chamber'},
+        {'label': 'Cell Count (Trap)', 'value': 'cell_count_any_trap'},
+        {'label': 'Occupancy Percentage (Chamber)', 'value': 'occupancy_chamber'}
     ]
     return [m for m in metrics if m['value'] in df or m['value'] in ['growth_rate']]
 
@@ -689,7 +690,7 @@ def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_t
 
     # Iterate through each experimental condition based on mean growth rate and add distribution figure
     groups = df.groupby(df.index)
-    keys = groups['growth_rate'].mean().sort_values().index
+    keys = groups['growth_rate'].median().sort_values().index
     for k in keys:
         name = k if isinstance(k, str) else ':'.join(k)
         g = groups.get_group(k)
@@ -779,7 +780,7 @@ def update_array_graph(array, metric, enable_normalize):
         )
         fig['layout']['title'] = title
         return fig
-    elif metric in [cfg.cell_count_field, cfg.occupancy_field, 'num_measurements']:
+    elif 'cell_count' in metric or 'occupancy' in metric or metric == 'num_measurements':
         # Subset data to selected array TODO: choose data based on metric
         df = data.get_apartment_data()
         df = prep(df)
@@ -787,11 +788,11 @@ def update_array_graph(array, metric, enable_normalize):
             return dict(data=[], layout={})
 
         # Metric-specific transformations
-        if metric == cfg.occupancy_field:
+        if 'occupancy' in metric:
             df[metric] = df[metric] * 100
 
         # Pivot configuration
-        if metric == cfg.cell_count_field:
+        if 'cell_count' in metric:
             agg_func, fill_value, value_range = one_or_error, cfg.array_cell_count_fill, None
         elif metric == 'num_measurements':
             agg_func, fill_value, value_range = one_or_error, 0, (0, 5)

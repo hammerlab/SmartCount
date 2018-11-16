@@ -165,11 +165,11 @@ def get_apartment_image_data(df, marker_color=visualization.COLOR_RED):
     key_fields = get_apartment_key_fields()
 
     # Index growth data and use unique index values to subset other datasets
-    idx = df.set_index(key_fields).index.unique()
+    idx = df.set_index(key_fields).index.drop_duplicates()
 
     # Select apartment/cell data based on the given growth data
-    apt_data = get_apartment_data().set_index(key_fields).loc[idx].copy()
-    cell_data = get_cell_data().set_index(key_fields).loc[idx].copy()
+    apt_data = get_apartment_data().set_index(key_fields).loc[idx].reset_index().copy()
+    cell_data = get_cell_data().set_index(key_fields).loc[idx].reset_index().copy()
 
     # Add externally saved apartment images to apartment data
     images = []
