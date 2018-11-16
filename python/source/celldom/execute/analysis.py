@@ -10,6 +10,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 DEFAULT_DATE_GROUP_GAP_SECONDS = 3600
+DATE_GROUP_FIELDS = ['elapsed_hours', 'elapsed_hours_group', 'acq_datetime_group']
+GROWTH_RATE_DICT_FIELDS = ['cell_counts', 'hours', 'dates', 'occupancies', 'confluence']
+GROWTH_RATE_LIST_FIELDS = ['acq_ids']
+GROWTH_RATE_OBJ_FIELDS = GROWTH_RATE_DICT_FIELDS + GROWTH_RATE_LIST_FIELDS
 
 
 def get_experiment_date_groups(dates, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SECONDS):
@@ -22,7 +26,7 @@ def get_experiment_date_groups(dates, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SEC
         dates = dates.drop_duplicates()
 
     # Create a new group index each time the difference between steps exceeds the given threshold (in seconds)
-    groups = (dates.diff().dt.seconds >= min_gap_seconds).cumsum()
+    groups = (dates.diff().dt.total_seconds() >= min_gap_seconds).cumsum()
 
     # Get the minimum date for each group and then get a vector of len(dates) containaing the group date
     # for each original date
@@ -32,14 +36,12 @@ def get_experiment_date_groups(dates, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SEC
     return pd.Series(groups.values, index=dates.values)
 
 
-def add_experiment_date_groups(apt_data, exp_cond_fields, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SECONDS):
+def add_experiment_date_groups(df, exp_cond_fields, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SECONDS):
     """Group dates and elapsed time fields by inferred date groups
 
-    This often produces time period groupings that are much more meaningful than raw dates round down to a less
+    This often produces time period groupings that are much more meaningful than raw dates rounded down to a less
     granular frequency.
     """
-    df = apt_data
-
     # Add elapsed hours if not present
     if 'elapsed_hours' not in df:
         df['elapsed_hours'] = get_experiment_elapsed_hours(df, exp_cond_fields)
@@ -51,67 +53,42 @@ def add_experiment_date_groups(apt_data, exp_cond_fields, min_gap_seconds=DEFAUL
         date_map = get_experiment_date_groups(dg['acq_datetime'], min_gap_seconds)
         dg['acq_datetime_group'] = dg['acq_datetime'].map(date_map)
         dg['elapsed_hours_group'] = dg['acq_datetime_group'].map(
-            dg.groupby('acq_datetime_group')['elapsed_hours'].min())
+            dg.groupby('acq_datetime_group')['elapsed_hours'].min()).astype(int)
         res.append(dg)
     return pd.concat(res).reset_index(drop=True)
 
 
-def get_experiment_start_dates(apt_data, exp_cond_fields):
-    return apt_data.groupby(exp_cond_fields)['acq_datetime'].min().rename('experiment_start_date')
+def get_experiment_start_dates(df, exp_cond_fields):
+    return df.groupby(exp_cond_fields)['acq_datetime'].min().rename('experiment_start_date')
 
 
-def get_experiment_elapsed_hours(apt_data, exp_cond_fields):
+def get_experiment_elapsed_hours(df, exp_cond_fields):
     # Get group -> min date index
-    exp_start_dates = get_experiment_start_dates(apt_data, exp_cond_fields)
+    exp_start_dates = get_experiment_start_dates(df, exp_cond_fields)
 
     # Map min dates to given data frame, giving a N [= len(apt_data)] vector of start dates
-    exp_start_dates = apt_data.set_index(exp_cond_fields).index.to_series().map(exp_start_dates)
+    exp_start_dates = df.set_index(exp_cond_fields).index.to_series().map(exp_start_dates)
 
     # Return computed time since beginning of experiment
-    return (apt_data['acq_datetime'].values - exp_start_dates.values) / np.timedelta64(1, 'h')
+    # pylint: disable=too-many-function-args
+    return (df['acq_datetime'].values - exp_start_dates.values) / np.timedelta64(1, 'h')
 
 
-GROWTH_RATE_DICT_FIELDS = ['cell_counts', 'occupancies', 'confluence']
-GROWTH_RATE_LIST_FIELDS = ['acq_ids']
-GROWTH_RATE_OBJ_FIELDS = GROWTH_RATE_DICT_FIELDS + GROWTH_RATE_LIST_FIELDS
-
-
-def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None, occupancy_threshold=.5):
-
+def get_growth_rate_data(apt_data, exp_cond_fields,
+                         cell_count_field='cell_count', occupancy_field='occupancy', occupancy_threshold=.5):
     df = apt_data.copy()
 
-    # If cell data was provided, replace apartment counts with the data provided (the cell data may have been
-    # filtered in a way that should be reflected in apartment cell counts)
-    if cell_data is not None:
-
-        # Group by original image id, id of apartment within that image, and time to compute new cell count
-        dfct = cell_data.groupby(['acq_id', 'apt_id', 'acq_datetime']).size().rename('cell_count').reset_index()
-
-        # Merge apt counts onto dynamic cell counts and then keep only rows that have either zero counts
-        # or some value in the dynamic counts
-        assert len(dfct.columns.difference(df.columns)) == 0, \
-            'Apartment data does not have required fields "{}"'.format(dfct.columns)
-        df = df.rename(columns={'cell_count': 'original_cell_count'})
-        df = pd.merge(df, dfct, how='left', on=dfct.columns.values)
-        df['cell_count'] = np.where(np.isclose(df['original_cell_count'], 0), 0, df['cell_count'])
-        df = df[df['cell_count'].notnull()].drop('original_cell_count', axis=1)
-
-    # Infer experiment start dates if not given, based on earliest timestamps in data
-    if 'elapsed_hours' not in df:
-        df['elapsed_hours'] = get_experiment_elapsed_hours(df, exp_cond_fields)
-
-    # Regroup by apartment + time and compute median cell count across all measurements in time
-    # (and retain sets of unique acquisition ids as this is very helpful for tracing data back to images)
-    df = df.groupby(exp_cond_fields + ['st_num', 'apt_num', 'elapsed_hours', 'acq_datetime'])\
-        .agg({
-            'cell_count': 'median',
-            'occupancy_chamber': 'median',
-            'acq_id': (lambda x: set(x))
-        }).reset_index()
-
     def grm(g):
-        gts = g.set_index('acq_datetime')[['cell_count', 'occupancy_chamber']].sort_index()
-        tsct, tso = gts['cell_count'], gts['occupancy_chamber']
+        gts = g.set_index('acq_datetime_group').sort_index()
+        assert gts.index.is_unique, \
+            'Apartment "{}" has cell count timeseries with duplicated dates: Timeseries = {}'\
+            .format(g[['acq_id', 'apt_id', 'st_num', 'apt_num']].iloc[0].to_dict(), gts.to_dict())
+        tsct, tso = gts[cell_count_field], gts[occupancy_field]
+        tsh, tsd = gts['elapsed_hours_group'], gts['acq_datetime']
+
+        # Get time zero counts for all cell types
+        ctz = gts.filter(regex='^cell_count_.*').rename(columns=lambda c: c.replace('cell_', 'tz_')).loc[tsh == 0]
+        ctz = ctz.iloc[0].to_dict() if len(ctz) > 0 else {c: np.nan for c in ctz.columns}
 
         # Determine "confluence" marker as when previous measurement occupancy is beyond a threshold
         # and the current count is less than the previous (which when true, is always true forward in time)
@@ -122,26 +99,31 @@ def get_growth_rate_data(apt_data, exp_cond_fields, cell_data=None, occupancy_th
         vm = ~tsconf.values
 
         # Compute growth rate estimation and other useful statistics (including timeseries)
-        return pd.Series({
-            'growth_rate': modeling.get_growth_rate(g[vm]['elapsed_hours'] / 24, g[vm]['cell_count']),
-            'max_cell_count': tsct.max(),
-            'min_cell_count': tsct.min(),
-            'first_date': tsct.index[0],
-            'last_date': tsct.index[-1],
-            'first_count': tsct.iloc[0],
-            'last_count': tsct.iloc[-1],
+        res = {
+            'growth_rate': modeling.get_growth_rate(g[vm]['elapsed_hours'] / 24, g[vm][cell_count_field]),
+            'max_count': tsct.max(),
+            'min_count': tsct.min(),
+            'first_hour': tsh.iloc[0],
+            'last_hour': tsh.iloc[-1],
+            'first_date': tsd.iloc[0],
+            'last_date': tsd.iloc[-1],
             'n': len(tsct),
-            'elapsed_hours_min': g['elapsed_hours'].min(),
-            'cell_counts': tsct.to_dict(),
-            'occupancies': tso.to_dict(),
-            'confluence': tsconf.to_dict(),
+            'initial_condition': gts['initial_condition'].iloc[0],
+            'hours': tsh.to_json(),
+            'dates': tsd.to_json(),
+            'cell_counts': tsct.to_json(),
+            'occupancies': tso.to_json(),
+            'confluence': tsconf.to_json(),
             # Flatten the array of acquisition id sets back into a single set
-            'acq_ids': list(set([acq_id for acq_ids in g['acq_id'].values for acq_id in acq_ids]))
-        })
+            'acq_ids': pd.Series([
+                acq_id for acq_ids in g['acq_id'].values for acq_id in acq_ids
+            ]).drop_duplicates().to_json()
+        }
+        res.update(ctz)
+        return pd.Series(res)
 
     # Regroup by st/apt alone (with experimental conditions) and compute growth rates
-    grmcols = ['elapsed_hours', 'acq_datetime', 'cell_count', 'occupancy_chamber', 'acq_id']
-    df = df.groupby(exp_cond_fields + ['st_num', 'apt_num'])[grmcols].apply(grm).reset_index()
+    df = df.groupby(exp_cond_fields + ['st_num', 'apt_num']).apply(grm).reset_index()
 
     return df
 

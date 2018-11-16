@@ -1,6 +1,5 @@
 import os
 import glob
-import json
 import os.path as osp
 import numpy as np
 import pandas as pd
@@ -8,8 +7,7 @@ import time
 from celldom.execute import analysis
 from celldom.execute import visualization
 from celldom.core import cytometry
-from celldom.core.experiment import Experiment
-from celldom.execute import calculation
+from celldom.execute import view
 from celldom_app.overview import config
 from cvutils.encoding import base64_encode_image
 from skimage import color
@@ -20,14 +18,14 @@ logger = logging.getLogger(__name__)
 
 cfg = None
 image_store = None
-output_dir = None
 cache = {}
 
-KEY_GROWTH_DATA = 'growth_data'
-KEY_APT_DATA = 'apartment_data'
-KEY_ACQ_DATA = 'acquisition_data'
-KEY_CELL_DATA = 'cell_data'
-KEY_ARRAY_DATA = 'array_data'
+KEY_APT = 'apartment'
+KEY_APT_SUMMARY = 'apartment_summary'
+KEY_ACQ = 'acquisition'
+KEY_CELL = 'cell'
+KEY_ARRAY = 'array'
+
 # Currently, nothing is cached by application (all such functionality should be pushed to celldom.execute.calculation)
 SAVE_KEYS = []
 STORE_READ_MAX_ATTEMPTS = 10
@@ -39,38 +37,38 @@ def save(overwrite=False):
     for k in SAVE_KEYS:
         if k not in cache:
             continue
-        f = osp.join(output_dir, k + '.h5')
+        f = osp.join(cfg.app_output_dir, k + '.h5')
         if not osp.exists(f) or overwrite:
             logger.info('Saving cached object "%s" to path "%s"', k, f)
             cache[k].to_hdf(f, key='data')
 
 
 def restore():
-    for f in glob.glob(osp.join(output_dir, '*.h5')):
+    for f in glob.glob(osp.join(cfg.app_output_dir, '*.h5')):
         k = osp.basename(f).split('.')[0]
         if k in SAVE_KEYS:
             logger.info('Loading cached object "%s" from path "%s"', k, f)
             cache[k] = pd.read_hdf(f)
 
 
-def get_growth_data():
-    return cache[KEY_GROWTH_DATA]
+def get_apartment_summary_data():
+    return cache[KEY_APT_SUMMARY]
 
 
 def get_acquisition_data():
-    return cache[KEY_ACQ_DATA]
+    return cache[KEY_ACQ]
 
 
 def get_cell_data():
-    return cache[KEY_CELL_DATA]
+    return cache[KEY_CELL]
 
 
 def get_apartment_data():
-    return cache[KEY_APT_DATA]
+    return cache[KEY_APT]
 
 
 def get_array_data():
-    return cache[KEY_ARRAY_DATA]
+    return cache[KEY_ARRAY]
 
 
 def get_array_key_fields():
@@ -106,50 +104,35 @@ def get_array_key(row):
     return _get_key(row, get_array_key_fields())
 
 
-def _prep(experiment, df):
-    """Add or transform any globally available fields"""
-    return calculation.add_measurement_times(experiment, df)
-
-
 def get_output_path(path):
     """Get relative path from app output path (i.e. $EXP_DATA/app/overview)"""
-    return osp.join(output_dir, path)
+    return osp.join(cfg.app_output_dir, path)
 
 
-def initialize(data_dir):
+def initialize():
     global cfg
     global image_store
     cfg = config.get()
+    logger.info('Initializing app data for data directory "%s"', cfg.exp_data_dir)
 
-    global output_dir
-    logger.info('Initializing app data for data directory "%s"', data_dir)
-
-    output_dir = osp.join(data_dir, 'app', 'overview')
-    if not osp.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
+    if not osp.exists(cfg.app_output_dir):
+        os.makedirs(cfg.app_output_dir, exist_ok=True)
     restore()
-
-    experiment = Experiment(cfg.exp_config, data_dir=data_dir)
 
     # Initialize image datastore
     try:
-        image_store = experiment.get_image_store()
+        image_store = cfg.exp.get_image_store()
     except Exception:
         logger.warning('Image data not available (processor is likely still running)')
 
-    # Extract necessary data from experiment output stores
-    store = experiment.get_data_store()
-    cache[KEY_CELL_DATA] = _prep(experiment, store.get('cell'))
-    cache[KEY_APT_DATA] = _prep(experiment, store.get('apartment'))
-    cache[KEY_ACQ_DATA] = _prep(experiment, store.get('acquisition'))
+    # Extract necessary data from experiment view stores
+    view.build_all(cfg.exp, force=cfg.force_view_calculation)
+    store = cfg.exp.get_view_store()
+    for k in [KEY_APT, KEY_APT_SUMMARY, KEY_ACQ, KEY_CELL]:
+        cache[k] = store.get(k)
 
-    # Load/compute growth rate data
-    if KEY_GROWTH_DATA not in cache:
-        df = calculation.calculate_apartment_growth_rates(experiment, overwrite=cfg.force_result_calculation)
-        cache[KEY_GROWTH_DATA] = df
-
-    if KEY_ARRAY_DATA not in cache:
-        df = cache[KEY_GROWTH_DATA]
+    if KEY_ARRAY not in cache:
+        df = cache[KEY_APT_SUMMARY]
         df = df.groupby(cfg.experimental_condition_fields).agg({
             'growth_rate': ['count', 'median', 'mean'],
             'first_date': 'min',
@@ -164,7 +147,7 @@ def initialize(data_dir):
             'last_date:max': 'last_date'
         })
         df = df.reset_index()
-        cache[KEY_ARRAY_DATA] = df
+        cache[KEY_ARRAY] = df
 
     # Save any cached objects that haven't already been saved
     save(overwrite=False)
@@ -172,8 +155,8 @@ def initialize(data_dir):
     # Remove OOB apartments if configured to do so
     if cfg.remove_oob_address:
         logger.info('Experiment data loaded with OOB apartment addresses removed')
-        for k in [KEY_CELL_DATA, KEY_APT_DATA, KEY_GROWTH_DATA]:
-            cache[k] = calculation.remove_oob_apartments(experiment, cache[k])
+        for k in [KEY_CELL, KEY_APT, KEY_APT_SUMMARY]:
+            cache[k] = view.remove_oob_apartments(cfg.exp, cache[k])
     else:
         logger.info('Experiment data loaded without removing OOB apartment addresses')
 
@@ -182,11 +165,11 @@ def get_apartment_image_data(df, marker_color=visualization.COLOR_RED):
     key_fields = get_apartment_key_fields()
 
     # Index growth data and use unique index values to subset other datasets
-    idx = df.set_index(key_fields).index.unique()
+    idx = df.set_index(key_fields).index.drop_duplicates()
 
     # Select apartment/cell data based on the given growth data
-    apt_data = get_apartment_data().set_index(key_fields).loc[idx].copy()
-    cell_data = get_cell_data().set_index(key_fields).loc[idx].copy()
+    apt_data = get_apartment_data().set_index(key_fields).loc[idx].reset_index().copy()
+    cell_data = get_cell_data().set_index(key_fields).loc[idx].reset_index().copy()
 
     # Add externally saved apartment images to apartment data
     images = []
@@ -213,6 +196,7 @@ def get_apartment_image_data(df, marker_color=visualization.COLOR_RED):
         row['encoded_images'] = [base64_encode_image(img) for img in g['image']]
         row['images'] = g['image'].values
         row['dates'] = g['acq_datetime'].tolist()
+        row['hours'] = g['elapsed_hours_group'].tolist()
         row['cell_counts'] = g['cell_count'].tolist()
         res.append(row)
     res = pd.DataFrame(res)

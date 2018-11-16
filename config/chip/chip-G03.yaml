@@ -20,12 +20,12 @@ components:
     - [53, 113]
     - [54, 61]
     - [64, 33]
-#  trap:
-#    boundary:
-#    - [84, 187]
-#    - [152, 187]
-#    - [152, 223]
-#    - [84, 223]
+  trap:
+    boundary:
+    - [84, 187]
+    - [152, 187]
+    - [152, 223]
+    - [84, 223]
 marker_spacing: {horizontal: 260, vertical: 198}
 name: G03
 st_num_digit_bounds:

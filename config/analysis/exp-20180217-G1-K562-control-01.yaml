@@ -1,10 +1,13 @@
 name: Experiment "exp-20180217-G1-K562-control-01" Analysis
 measurement_inference:
   min_measurement_gap_seconds: 3600
-confluence_detection:
-  component_occupancy_threshold:
-    # Lower the occupancy threshold slightly (from .5)
-    chamber: .4
-apartment_growth_rate:
+apartment_classification:
+  cell_class: {type: any, component: chamber}
+apartment_summary:
+  cell_class: {type: any, component: chamber}
   # Use no initial conditions for growth rate calculations
-  initial_conditions_filter: []
+  initial_condition: []
+confluence_detection:
+  component: chamber
+  # Lower the occupancy threshold slightly (from .5)
+  threshold: .5

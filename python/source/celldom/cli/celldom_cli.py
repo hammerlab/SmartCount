@@ -145,10 +145,10 @@ class Celldom(object):
                 to test source code changes without restarting the app
         """
         from celldom_app.overview import config as app_config
-        app_config.initialize(experiment_config_path)
+        app_config.initialize(experiment_config_path, output_dir)
 
         from celldom_app.overview import data as app_data
-        app_data.initialize(output_dir)
+        app_data.initialize()
 
         from celldom_app.overview import app
         app.run_server(debug=debug)
@@ -180,7 +180,7 @@ class Celldom(object):
             na_growth_rate_fill_value=na_growth_rate_fill_value
         )
         path = _exec_nb('array_analysis.ipynb', output_dir, params, output_filename=nb_filename)
-        print('Analysis complete; see results at "{}"'.format(path))
+        logger.info('Analysis complete; see results at "{}"'.format(path))
 
     def get_apartment_info(self, experiment_config_path, output_dir, keys):
         """Get apartment data for a specific set of "keys"
@@ -230,6 +230,25 @@ class Celldom(object):
         sio = io.StringIO()
         yaml.dump(config, sio)
         return sio.getvalue()
+
+    def build_views(self, experiment_config_path, output_dir):
+        """Build (or rebuild) views based on raw experiment data
+
+        This is necessary because apartment growth rate calculations and aggregations by inferred date groupings
+        are parameterized by analysis configurations and take a while to run (so creating materialized "views"
+        only needs to happen once, and all analysis afterwards is faster)
+
+        Args:
+            experiment_config_path: Path to experiment configuration
+                (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
+            output_dir: Path to output directory; this is the `output_dir` given to `run_processor`
+                (e.g. /lab/data/celldom/output/20180820-G3-full)
+        """
+        from celldom.execute import view
+        from celldom.core import experiment
+        exp_config = experiment_config.ExperimentConfig(experiment_config_path)
+        view.build_all(experiment.Experiment(exp_config, output_dir), force=True)
+        logger.info('View construction complete')
 
 
 if __name__ == '__main__':

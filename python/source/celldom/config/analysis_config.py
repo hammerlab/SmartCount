@@ -18,6 +18,37 @@ class AnalysisConfig(object):
     def __setitem__(self, key, value):
         self.conf[key] = value
 
+    def _get_mode(self, key):
+        return self.conf.get(key, {}).get('mode', 'default')
+
+    @property
+    def cell_classification_mode(self):
+        return self._get_mode('cell_classification')
+    
+    @property
+    def apartment_classification_mode(self):
+        return self._get_mode('apartment_classification')
+
+    @property
+    def apartment_classification_cell_class(self):
+        return self.conf['apartment_classification']['cell_class']
+    
+    @property
+    def confluence_detection_component(self):
+        return self.conf['confluence_detection']['component']
+    
+    @property
+    def confluence_detection_threshold(self):
+        return self.conf['confluence_detection']['threshold']
+    
+    @property
+    def apartment_summary_cell_class(self):
+        return self.conf['apartment_summary']['cell_class']
+
+    @property
+    def apartment_summary_initial_condition(self):
+        return self.conf['apartment_summary']['initial_condition']
+
 
 def get_analysis_config_by_name(name):
     """Load analysis configuration by name

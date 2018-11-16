@@ -10,6 +10,7 @@ import re
 from skimage import io as sk_io
 from collections import OrderedDict
 from celldom import io as celldom_io
+from celldom.core.datastore import HDF5Datastore
 from celldom.config import cell_config, marker_config
 from celldom.dataset import marker_dataset
 from celldom.extract import NO_IMAGES, ALL_IMAGES, APT_IMAGES, apartment_extraction
@@ -60,19 +61,6 @@ def _resolve_paths(config):
     return model_paths
 
 
-class Datastore(object):
-    """Abstract class representing model for manipulating cytometry results"""
-    pass
-
-    def close(self):
-        raise NotImplementedError()
-
-
-def _initialize_data_dir(data_dir):
-    os.makedirs(data_dir, exist_ok=True)
-    return data_dir
-
-
 def image_compression_codec():
     # See: https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_hdf.html
     return os.getenv(celldom.ENV_CELLDOM_IMAGE_COMPRESSION_CODEC, 'blosc:lz4')
@@ -81,40 +69,6 @@ def image_compression_codec():
 def image_compression_level():
     # See: https://pandas.pydata.org/pandas-docs/stable/generated/pandas.DataFrame.to_hdf.html
     return int(os.getenv(celldom.ENV_CELLDOM_IMAGE_COMPRESSION_LEVEL, 9))
-
-
-class HDF5Datastore(Datastore):
-
-    def __init__(self, data_dir, mode, data_file='data.h5', **kwargs):
-        """Datastore implementation based on local HDF5 files"""
-        self.data_dir = _initialize_data_dir(data_dir)
-        self.data_file = osp.join(self.data_dir, data_file)
-        self.store = pd.HDFStore(self.data_file, mode=mode, **kwargs)
-
-    def close(self):
-        self.store.close()
-
-    def save_image(self, key, image, grayscale=True):
-
-        # If storing grayscale images, make sure not to store as redundant RGB representation
-        if grayscale and image.ndim == 3:
-            image = image[..., 0]
-
-        self.store.put(key + '/shape', pd.Series(image.shape), format='fixed')
-        self.store.put(key + '/data', pd.Series(image.ravel()), format='fixed')
-
-    def load_image(self, key):
-        """Load image array for the given key, or return nothing if key is not present"""
-        try:
-            shape = tuple(self.store.get(key + '/shape'))
-            image = self.store.get(key + '/data')
-        except KeyError:
-            return None
-        return image.values.reshape(shape)
-
-    def save_df(self, key, df, **kwargs):
-        if len(df) > 0:
-            self.store.append(key, df, **kwargs)
 
 
 def get_readonly_datastore(data_dir, data_file='data.h5'):
@@ -386,7 +340,6 @@ class Cytometer(object):
         # Summarize cells
         cells = r['cells']
         r['cell_count'] = len(cells)
-        r = r.append(_get_cell_stats(cells))
 
         # Summarize component data at apartment level (must reduce to single dict/series)
         r = r.append(_get_component_stats(r['components']))
@@ -477,30 +430,3 @@ def _get_image_fields(fields, dpf):
 
 def _get_component_stats(components):
     return pd.Series({('occupancy_' + c['component']): c['occupancy'] for c in components})
-
-
-def _get_cell_stats(
-        cells,
-        attrs=DEFAULT_CELL_STAT_ATTRS,
-        stats=DEFAULT_CELL_STAT_NAMES,
-        percentiles=DEFAULT_CELL_STAT_PERCENTILES):
-    """Fetch cell statistic summaries
-
-    Returns:
-        A series with keys like "cell_area_min", "cell_area_max", "cell_area_std", "cell_solidity_mean", etc.
-    """
-    def get_stats(x, name):
-        return (
-            pd.Series(x)
-            .describe(percentiles=percentiles)
-            # Replace percent signs in percentile values
-            .rename(lambda v: 'p' + v.replace('%', '') if '%' in v else v)
-            .filter(stats)
-            .add_prefix('cell_' + name + '_')
-        )
-
-    # Aggregate series of statistics for all given attributes
-    return pd.concat([
-        get_stats([c.get(attr, np.nan) for c in cells], attr)
-        for attr in attrs
-    ])

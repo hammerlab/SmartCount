@@ -1,4 +1,5 @@
 from celldom.core import cytometry
+from celldom.execute import view
 
 
 class Experiment(object):
@@ -12,4 +13,7 @@ class Experiment(object):
 
     def get_image_store(self):
         return cytometry.get_readonly_images(self.data_dir)
+
+    def get_view_store(self):
+        return view.get_readonly_views(self.data_dir)
 

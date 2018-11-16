@@ -1,8 +1,11 @@
 name: Default Analysis
 measurement_inference:
   min_measurement_gap_seconds: 3600
+apartment_classification:
+  cell_class: {type: any, component: chamber}
+apartment_summary:
+  cell_class: {type: any, component: chamber}
+  initial_condition: [single_cell]
 confluence_detection:
-  component_occupancy_threshold:
-    chamber: .5
-apartment_growth_rate:
-  initial_conditions_filter: [single_cell]
+  component: chamber
+  threshold: .5

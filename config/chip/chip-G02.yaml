@@ -25,12 +25,12 @@ components:
     - [61, 50]
     - [68, 27]
     - [75, 15]
-#  trap:
-#    boundary:
-#    - [64, 261]
-#    - [146, 261]
-#    - [146, 295]
-#    - [64, 295]
+  trap:
+    boundary:
+    - [64, 261]
+    - [146, 261]
+    - [146, 295]
+    - [64, 295]
 marker_spacing: {horizontal: 255, vertical: 275}
 name: G02
 st_num_digit_bounds:
