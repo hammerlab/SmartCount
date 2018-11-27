@@ -1,0 +1,25 @@
+name: exp-MLadder-MultipleDatasets
+chip: {name: chip-ML01}
+cytometer: {name: cytometer-04}
+analysis: {name: default}
+acquisition:
+  magnification: 10
+  reflection: true
+metadata:
+  # Example file path: */Datasets/20181115/Control/Chip1/20181102-Mladder150-MOLM-Day1-Chip4-40mbar-1000mbarsqueeze/BF_ST_000_APT_012_20181102103634.tif
+  fields:
+    datetime:
+      regex: '[0-9]{14}'
+      format: '%Y%m%d%H%M%S'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+    startDate: '[0-9]{8}'
+    cohort: 'Control|500pMQuiz'
+    lane: '[0-9]{1}'
+  path_format: '.*/{startDate}/{cohort}/Chip{lane}/.*/BF_ST_{street}_APT_{apartment}_{datetime}.tif'
+groupings:
+  # This list should include all fields necessary to identify a set of values specific to an experimental condition
+  # *IMPORTANT* Combinations of these fields must correspond to distinct apt_num/st_num namespaces (which
+  # usually translates to defining individual chips)
+  experimental_conditions: [startDate,cohort,lane]
+
