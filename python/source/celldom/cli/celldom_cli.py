@@ -29,6 +29,13 @@ def _nb_path(nb_name):
 def _exec_nb(nb_name, data_dir, params, output_path=None, output_filename=None):
     import papermill as pm
     input_path = _nb_path(nb_name)
+
+    # Remove any arguments with null values since papermill passes these to notebooks
+    # as string "None" (defaults to None should be handled in first cell)
+    params = {k: v for k, v in params.items() if v is not None}
+
+    # Create path to output notebook by assuming that it should be placed under
+    # the output directory for the experiment
     if output_path is None:
         output_path = osp.join(data_dir, 'notebook')
         os.makedirs(output_path, exist_ok=True)
@@ -154,7 +161,6 @@ class Celldom(object):
         app.run_server(debug=debug)
 
     def run_array_analysis(self, experiment_config_path, output_dir,
-                           apartment_initial_conditions=None,
                            na_growth_rate_fill_value=None,
                            nb_filename=None):
         """Run the apartment array analysis template notebook
@@ -164,19 +170,14 @@ class Celldom(object):
                 (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
             output_dir: Path to output directory; this is the `output_dir` given to `run_processor`
                 (e.g. /lab/data/celldom/output/20180820-G3-full)
-            apartment_initial_conditions: Initial conditions (at time zero) of apartments as a comma separated
-                list of any number of the following: ['other', 'no_cell', 'single_cell', 'double_cell', 'triple_cell'];
-                Example: --apartment-initial-conditions=['no_cell','single_cell']
-                Default value is nothing, which means that no filters of any kind are applied
-            na_growth_rate_fill_value: Placeholder value for apartments with cell count data but either too few
-                data points for growth rate calculations or off-target initial conditions; default is nothing, which
-                means that NA growth rates are excluded from visualizations and analysis (another common choice is 0)
+            na_growth_rate_fill_value: Placeholder value for growth rates in apartments ineligible for growth rate
+                calculations (due to initial conditions or lack of data); This only applies to growth rate heatmap
+                visualizations and can be used to fill in missing values in grids for better continuity in the display
             nb_filename: Name of notebook file to create (in `output_dir`); defaults to name of template notebook
         """
         params = dict(
             experiment_config_path=experiment_config_path,
             experiment_output_dir=output_dir,
-            apartment_initial_conditions=apartment_initial_conditions,
             na_growth_rate_fill_value=na_growth_rate_fill_value
         )
         path = _exec_nb('array_analysis.ipynb', output_dir, params, output_filename=nb_filename)
@@ -226,7 +227,6 @@ class Celldom(object):
             lambda_grid=lambda_grid
         )
         params.update(kwargs)
-        params = {k: v for k, v in params.items() if v is not None}
         path = _exec_nb('resistant_cell_analysis.ipynb', output_dir, params, output_filename=nb_filename)
         logger.info('Analysis complete; see results at "{}"'.format(path))
 

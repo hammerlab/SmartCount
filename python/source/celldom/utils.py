@@ -22,4 +22,3 @@ def rgb2gray(image):
         2D uint8 image
     """
     return exposure.rescale_intensity(color.rgb2gray(image), in_range=(0, 1), out_range=np.uint8).astype(np.uint8)
-
