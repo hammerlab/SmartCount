@@ -1,6 +1,8 @@
 name: Default Analysis
 measurement_inference:
   min_measurement_gap_seconds: 3600
+growth_rate_modeling:
+  fit_intercept: true
 apartment_classification:
   cell_class: {type: any, component: chamber}
 apartment_summary:
