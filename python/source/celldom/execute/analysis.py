@@ -75,7 +75,8 @@ def get_experiment_elapsed_hours(df, exp_cond_fields):
 
 
 def get_growth_rate_data(apt_data, exp_cond_fields,
-                         cell_count_field='cell_count', occupancy_field='occupancy', occupancy_threshold=.5):
+                         cell_count_field='cell_count', occupancy_field='occupancy', occupancy_threshold=.5,
+                         fit_intercept=True):
     df = apt_data.copy()
 
     def grm(g):
@@ -99,8 +100,11 @@ def get_growth_rate_data(apt_data, exp_cond_fields,
         vm = ~tsconf.values
 
         # Compute growth rate estimation and other useful statistics (including timeseries)
+        growth_rate_0, growth_rate_1 = modeling.get_growth_rate(
+            g[vm]['elapsed_hours'] / 24, g[vm][cell_count_field], fit_intercept=fit_intercept)
         res = {
-            'growth_rate': modeling.get_growth_rate(g[vm]['elapsed_hours'] / 24, g[vm][cell_count_field]),
+            'growth_rate': growth_rate_1,
+            'growth_rate_intercept': growth_rate_0,
             'max_count': tsct.max(),
             'min_count': tsct.min(),
             'first_hour': tsh.iloc[0],

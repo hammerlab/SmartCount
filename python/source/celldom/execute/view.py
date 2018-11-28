@@ -193,7 +193,8 @@ def get_apartment_summary_view(experiment, acquisition_data, apartment_data):
         df_apt, exp_cond_fields,
         cell_count_field=get_cell_count_field(**analysis_config.apartment_summary_cell_class),
         occupancy_field=get_occupancy_field(analysis_config.confluence_detection_component),
-        occupancy_threshold=analysis_config.confluence_detection_threshold
+        occupancy_threshold=analysis_config.confluence_detection_threshold,
+        fit_intercept=analysis_config.growth_rate_modeling_fit_intercept
     )
 
     # Copy original growth rate data so that it is available in addition to any filtered/transformed values

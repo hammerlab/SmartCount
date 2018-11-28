@@ -49,6 +49,10 @@ class AnalysisConfig(object):
     def apartment_summary_initial_condition(self):
         return self.conf['apartment_summary']['initial_condition']
 
+    @property
+    def growth_rate_modeling_fit_intercept(self):
+        return self.conf.get('growth_rate_modeling', {}).get('fit_intercept', True)
+
 
 def get_analysis_config_by_name(name):
     """Load analysis configuration by name

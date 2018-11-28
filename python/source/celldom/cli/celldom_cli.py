@@ -162,7 +162,7 @@ class Celldom(object):
 
     def run_array_analysis(self, experiment_config_path, output_dir,
                            na_growth_rate_fill_value=None,
-                           nb_filename=None):
+                           nb_filename=None, **kwargs):
         """Run the apartment array analysis template notebook
 
         Args:
@@ -180,6 +180,7 @@ class Celldom(object):
             experiment_output_dir=output_dir,
             na_growth_rate_fill_value=na_growth_rate_fill_value
         )
+        params.update(kwargs)
         path = _exec_nb('array_analysis.ipynb', output_dir, params, output_filename=nb_filename)
         logger.info('Analysis complete; see results at "{}"'.format(path))
 
@@ -187,7 +188,7 @@ class Celldom(object):
                                     concentration_values_order=None, concentration_values_map=None,
                                     drug_fields=None, array_fields=None,
                                     lambda_grid='0,1,21', nb_filename=None, **kwargs):
-        """Run the apartment array analysis template notebook
+        """Run the resistant cell analysis template notebook
 
         Args:
             experiment_config_path: Path to experiment configuration
