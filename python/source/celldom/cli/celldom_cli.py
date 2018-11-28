@@ -182,6 +182,54 @@ class Celldom(object):
         path = _exec_nb('array_analysis.ipynb', output_dir, params, output_filename=nb_filename)
         logger.info('Analysis complete; see results at "{}"'.format(path))
 
+    def run_resistant_cell_analysis(self, experiment_config_path, output_dir, concentration_fields,
+                                    concentration_values_order=None, concentration_values_map=None,
+                                    drug_fields=None, array_fields=None,
+                                    lambda_grid='0,1,21', nb_filename=None, **kwargs):
+        """Run the apartment array analysis template notebook
+
+        Args:
+            experiment_config_path: Path to experiment configuration
+                (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
+            output_dir: Path to output directory; this is the `output_dir` given to `run_processor`
+                (e.g. /lab/data/celldom/output/20180820-G3-full)
+            concentration_fields: Comma separated string with experiment field names corresponding to concentration
+                (e.g. 'acq_concentration')
+            concentration_values_order: Comma separated string with ordering of all possible concentrations
+                (e.g. if concentrations are "Control", ".1uM" and "1.0uM" the order would be given as
+                'Control,.1uM,1.0uM'); default is None meaning that names of concentrations are assumed to
+                sort lexically
+            concentration_values_map: Comma separated string with numeric (float) values corresponding to each
+                concentration name/label (e.g. if concentrations are "Control", ".1uM" and "1.0uM" the map
+                would be given as '0,.1,1.0')
+            drug_fields: Comma separated string with experiment field names corresponding to concentration
+                (e.g. 'acq_concentration'); default is None which implies that the entire experiment
+                involved only one drug
+            array_fields: Comma separated string with experiment field names corresponding to arrays; default is
+                None implying that only one array is present.  Note that unlike the other field groups, this could
+                also correspond to combinations of metadata fields that don't necessarily identify arrays.  For example,
+                fields identifying a chip could be used instead and cell counts in the analysis will be aggregated
+                across the chip instead of an array
+            lambda_grid: 3 item comma separated string with values `start`, `stop`, and `n` used to indicate the
+                growth rate thresholds used in the analysis (e.g. '0,1,21' means use lambda grid from 0 to 1 with
+                21 items, which implies increments of .05)
+            nb_filename: Name of notebook file to create (in `output_dir`); defaults to name of template notebook
+        """
+        params = dict(
+            experiment_config_path=experiment_config_path,
+            experiment_output_dir=output_dir,
+            concentration_fields=concentration_fields,
+            concentration_values_order=concentration_values_order,
+            concentration_values_map=concentration_values_map,
+            drug_fields=drug_fields,
+            array_fields=array_fields,
+            lambda_grid=lambda_grid
+        )
+        params.update(kwargs)
+        params = {k: v for k, v in params.items() if v is not None}
+        path = _exec_nb('resistant_cell_analysis.ipynb', output_dir, params, output_filename=nb_filename)
+        logger.info('Analysis complete; see results at "{}"'.format(path))
+
     def get_apartment_info(self, experiment_config_path, output_dir, keys):
         """Get apartment data for a specific set of "keys"
 
