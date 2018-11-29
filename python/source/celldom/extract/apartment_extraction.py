@@ -2,10 +2,11 @@ import pandas as pd
 import numpy as np
 from skimage import transform
 from skimage.exposure import rescale_intensity
+from skimage.feature import register_translation
 from celldom.extract import marker_extraction, digit_extraction, cell_extraction
 from celldom.extract import NO_IMAGES
 from celldom.exception import NoMarkerException
-from celldom.utils import assert_rgb, rgb2gray
+from celldom.utils import assert_rgb, rgb2gray, extract_patch
 
 
 def _rotate_vectors_2d(arr, rotation, origin):
@@ -83,7 +84,31 @@ def partition_digit_images(img, bounds, rotation):
     return imgs
 
 
-def partition_chip(img, centers, chip_config, focus_model=None):
+def get_apartment_image_translation(img, chip_config, patch_size=(16, 16)):
+    """Infer the translation of an extracted apartment image against a template image used for chip configuration"""
+
+    # Convert RGB images to 2D for registration
+    tgt_img = rgb2gray(assert_rgb(img))
+
+    # Get template image for registration and verify that it is of the same size
+    ref_img = chip_config.get_template_image()
+    assert ref_img.shape == tgt_img.shape, \
+        'Template and extracted apartment image must have same shape (template image shape = {}, extracted = {})' \
+        .format(ref_img.shape, tgt_img.shape)
+
+    # Extract identically sized patchs from both reference and target images
+    center = chip_config.get_marker_center()
+    ref_patch = extract_patch(ref_img, center, patch_size)
+    tgt_patch = extract_patch(tgt_img, center, patch_size)
+
+    # Compute translation and error
+    shifts, error, _ = register_translation(ref_patch, tgt_patch)
+    assert len(shifts) == 2
+
+    return shifts.astype(int), error, (ref_patch, tgt_patch)
+
+
+def partition_chip(img, centers, chip_config, focus_model=None, enable_registration=True):
     """Extract all relevant patches from raw, multi-component images (ie a chip)"""
     partitions = []
 
@@ -95,7 +120,16 @@ def partition_chip(img, centers, chip_config, focus_model=None):
         if apt_img is None:
             continue
 
-        # Ensure that image is RGB
+        # Register image against template if configured to do so
+        if enable_registration:
+            # Determine translation, redefine center based on this, and then re-extract apartment image
+            registration_shifts, registration_error, _ = get_apartment_image_translation(apt_img, chip_config)
+            center = center[0] - registration_shifts[0], center[1] - registration_shifts[1]
+            apt_img = partition_around_marker(img, center, chip_config['apt_margins'])
+        else:
+            registration_shifts, registration_error = [0, 0], 0.
+
+        # Ensure that apartment image is RGB
         assert_rgb(apt_img)
 
         # If an image focus/quality model was given, use it to score the apartment image
@@ -124,14 +158,17 @@ def partition_chip(img, centers, chip_config, focus_model=None):
             apt_num_image=apt_num_img,
             apt_num_digit_images=apt_num_digit_imgs,
             st_num_image=st_num_img,
-            st_num_digit_images=st_num_digit_imgs
+            st_num_digit_images=st_num_digit_imgs,
+            registration_shift_y=registration_shifts[0],
+            registration_shift_x=registration_shifts[1],
+            registration_error=registration_error
         ))
     return partitions
 
 
 def extract(
         image, marker_model, chip_config,
-        digit_model=None, cell_model=None, focus_model=None,
+        digit_model=None, cell_model=None, focus_model=None, enable_registration=True,
         dpf=NO_IMAGES, angle_tolerance=10, distance_tolerance=20):
 
     # Make sure provided image is RGB
@@ -182,7 +219,10 @@ def extract(
     ## Extract Around Marker Offsets
     ################################
 
-    partitions = partition_chip(norm_image, norm_centers, chip_config, focus_model=focus_model)
+    partitions = partition_chip(
+        norm_image, norm_centers, chip_config,
+        focus_model=focus_model, enable_registration=enable_registration
+    )
 
     # Add digit inference to address images if a digit model was provided
     if digit_model is not None:
