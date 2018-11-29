@@ -1,0 +1,25 @@
+name: exp-20181013-G1v2-K562-imatinib
+chip: {name: chip-G1v2}
+cytometer: {name: cytometer-03}
+analysis: {name: default}
+acquisition:
+  magnification: 16
+  reflection: false
+metadata:
+  # Example file path: ./2018-10-13-G1-K562-Orange-1-Imatinib-150nM-0hr/BFF_16X_St_000_Apt_000_201810131830.tif
+  fields:
+    datetime:
+      regex: '[0-9]{12}'
+      format: '%Y%m%d%H%M'
+    cell_line: 'K562'
+    condition: '1|2'
+    color: 'Orange'
+    drug: 'Imatinib'
+    hour: '[0-9]{1,3}'
+    concentration: '150nM'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+  path_format: '.*/2018-10-13-G1-{cell_line}-{color}-{condition}-{drug}-{concentration}-{hour}hr/BFF_16X_St_{street}_Apt_{apartment}_{datetime}.tif'
+groupings:
+  experimental_conditions: [cell_line, drug, concentration, color, condition]
+
