@@ -22,6 +22,10 @@ class ChipConfig(object):
     def __setitem__(self, key, value):
         self.conf[key] = value
 
+    @property
+    def name(self):
+        return self.conf['name']
+
     def get_component_area(self, component):
         if component in self.areas:
             return self.areas[component]

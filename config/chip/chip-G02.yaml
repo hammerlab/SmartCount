@@ -1,3 +1,4 @@
+apt_bbox: {bottom: 307, left: 12, right: 224, top: 11}
 apt_margins: {bottom: 56, left: -148, right: 64, top: -240}
 apt_num_digit_bounds:
 - {bottom: 31, left: 0, right: 21, top: 0}
@@ -41,4 +42,5 @@ st_num_digit_count: 3
 st_num_margins: {bottom: -7, left: -145, right: -87, top: -38}
 st_num_range: [0, 31]
 st_num_rotation: 0
+template_image_path: /lab/repos/celldom/config/chip/chip-G02/chip-G02.png
 

@@ -1,5 +1,5 @@
-apt_bbox: {bottom: 209, left: 9, right: 190, top: 5}
-apt_margins: {bottom: 23, left: -90, right: 91, top: -181}
+apt_bbox: {bottom: 203, left: 9, right: 190, top: 5}
+apt_margins: {bottom: 17, left: -90, right: 91, top: -181}
 apt_num_digit_bounds:
 - {bottom: 24, left: 0, right: 16, top: 0}
 - {bottom: 24, left: 16, right: 32, top: 0}
@@ -39,8 +39,8 @@ components:
     boundary:
     - [71, 180]
     - [109, 180]
-    - [109, 202]
-    - [71, 202]
+    - [109, 198]
+    - [71, 198]
 marker_spacing: {horizontal: 198, vertical: 198}
 name: G1v2
 st_num_digit_bounds:

@@ -1,3 +1,4 @@
+apt_bbox: {bottom: 284, left: 58, right: 257, top: 32}
 apt_margins: {bottom: 209, left: -153, right: 46, top: -43}
 apt_num_digit_bounds:
 - {bottom: 29, left: 0, right: 21, top: 0}
@@ -34,7 +35,7 @@ components:
     - [127, 20]
     - [123, 13]
 marker_spacing: {horizontal: 207, vertical: 217}
-name: ML
+name: ML01
 st_num_digit_bounds:
 - {bottom: 30, left: 0, right: 21, top: 0}
 - {bottom: 30, left: 15, right: 38, top: 0}
@@ -43,4 +44,5 @@ st_num_digit_count: 3
 st_num_margins: {bottom: 143, left: -150, right: -97, top: 113}
 st_num_range: [0, 127]
 st_num_rotation: 0
+template_image_path: /lab/repos/celldom/config/chip/chip-ML01/chip-ML01.png
 

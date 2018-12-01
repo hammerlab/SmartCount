@@ -121,7 +121,7 @@ class Celldom(object):
                 raise ValueError('Sample rate must in (0, 1] (not {})'.format(sample_rate))
             logger.info('Sampling raw files using given rate %s', sample_rate)
             files = pd.Series(files).sample(frac=sample_rate, random_state=celldom.seed)
-        logger.info('Number of data files chosen by sampling: %s', len(files))
+        logger.info('Number of data files chosen to process: %s', len(files))
 
         logger.info('Loading experiment configuration from path: %s', experiment_config_path)
         exp_config = experiment_config.ExperimentConfig(celldom.read_config(experiment_config_path))

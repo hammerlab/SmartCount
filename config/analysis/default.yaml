@@ -1,4 +1,4 @@
-name: Default Analysis
+name: Default
 measurement_inference:
   min_measurement_gap_seconds: 3600
 growth_rate_modeling:

@@ -9,5 +9,4 @@ apartment_summary:
   initial_condition: []
 confluence_detection:
   component: chamber
-  # Lower the occupancy threshold slightly (from .5)
   threshold: .5

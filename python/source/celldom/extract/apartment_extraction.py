@@ -126,6 +126,8 @@ def partition_chip(img, centers, chip_config, focus_model=None, enable_registrat
             registration_shifts, registration_error, _ = get_apartment_image_translation(apt_img, chip_config)
             center = center[0] - registration_shifts[0], center[1] - registration_shifts[1]
             apt_img = partition_around_marker(img, center, chip_config['apt_margins'])
+            if apt_img is None:
+                continue
         else:
             registration_shifts, registration_error = [0, 0], 0.
 

@@ -102,11 +102,14 @@ def get_page_apartments():
                         '\n\n**Field Definitions**\n'
                         '- {}: Experimental conditions\n'
                         '- **growth_rate**: 24hr growth rate estimate (log 2)\n'
-                        '- **min_cell_count**: Minimum cell count across all images taken\n'
-                        '- **max_cell_count**: Maximum cell count across all images taken\n'
-                        '- **first_date**: Date associated with first image found for an apartment\n'
-                        '- **n**: Number of patches from raw images extracted and associated with an apartment '
-                        '(this is typically the number of times a single apartment was imaged but there are exceptions)'
+                        '- **min_count**: Minimum cell count across all images taken'
+                        ' (cell type/component set in analysis configuration)\n'
+                        '- **max_count**: Maximum cell count across all images taken'
+                        ' (cell type/component set in analysis configuration)\n'
+                        '- **initial_condition**: String name associated with classification of time zero'
+                        ' conditions within apartment (e.g. single_cell, no_cell, double_cell, many_cells)\n'
+                        '- **tz_count_\*_\***: Time zero counts for each cell type and component\n'
+                        '- **n**: Number of time points (i.e. hours) for which measurements exist for apartment'
                         .format(
                             len(df),
                             ', '.join(['**{}**'.format(f) for f in cfg.experimental_condition_fields])
@@ -607,8 +610,10 @@ def update_apartment_growth_graph(selected_row_indices, rows):
                 for dt in tsct.index
             ]
         })
+    title = 'Apartment Cell Counts<br><i>Type: {type} Component: {component}</i>'\
+        .format(**cfg.analysis_config.apartment_summary_cell_class)
     fig_layout = {
-        'title': 'Apartment Cell Counts',
+        'title': title,
         'margin': GRAPH_GROWTH_DATA_MARGINS,
         'xaxis': {'title': 'Acquisition Hour'},
         'yaxis': {'title': 'Number of Cells'},
