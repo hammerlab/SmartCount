@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_DATE_GROUP_GAP_SECONDS = 3600
 DATE_GROUP_FIELDS = ['elapsed_hours', 'elapsed_hours_group', 'acq_datetime_group']
-GROWTH_RATE_DICT_FIELDS = ['cell_counts', 'hours', 'dates', 'occupancies', 'confluence']
-GROWTH_RATE_LIST_FIELDS = ['acq_ids']
-GROWTH_RATE_OBJ_FIELDS = GROWTH_RATE_DICT_FIELDS + GROWTH_RATE_LIST_FIELDS
+GROWTH_RATE_OBJ_FIELDS = ['cell_counts', 'hours', 'dates', 'occupancies', 'confluence', 'acq_ids']
 
 
 def get_experiment_date_groups(dates, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SECONDS):
@@ -84,7 +82,7 @@ def get_growth_rate_data(apt_data, exp_cond_fields,
         assert gts.index.is_unique, \
             'Apartment "{}" has cell count timeseries with duplicated dates: Timeseries = {}'\
             .format(g[['acq_id', 'apt_id', 'st_num', 'apt_num']].iloc[0].to_dict(), gts.to_dict())
-        tsct, tso = gts[cell_count_field], gts[occupancy_field]
+        tsct, tso, tacqid = gts[cell_count_field], gts[occupancy_field], gts['acq_id']
         tsh, tsd = gts['elapsed_hours_group'], gts['acq_datetime']
 
         # Get time zero counts for all cell types
@@ -102,6 +100,7 @@ def get_growth_rate_data(apt_data, exp_cond_fields,
         # Compute growth rate estimation and other useful statistics (including timeseries)
         growth_rate_0, growth_rate_1 = modeling.get_growth_rate(
             g[vm]['elapsed_hours'] / 24, g[vm][cell_count_field], fit_intercept=fit_intercept)
+
         res = {
             'growth_rate': growth_rate_1,
             'growth_rate_intercept': growth_rate_0,
@@ -117,11 +116,10 @@ def get_growth_rate_data(apt_data, exp_cond_fields,
             'dates': tsd.to_json(),
             'cell_counts': tsct.to_json(),
             'occupancies': tso.to_json(),
-            'confluence': tsconf.to_json(),
-            # Flatten the array of acquisition id sets back into a single set
-            'acq_ids': pd.Series([
-                acq_id for acq_ids in g['acq_id'].values for acq_id in acq_ids
-            ]).drop_duplicates().to_json()
+            # Serialize as int because otherwise pd.read_json interprets boolean as date
+            # when using a date index
+            'confluence': tsconf.astype(int).to_json(),
+            'acq_ids': tacqid.to_json()
         }
         res.update(ctz)
         return pd.Series(res)

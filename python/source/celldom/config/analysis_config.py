@@ -22,6 +22,10 @@ class AnalysisConfig(object):
         return self.conf.get(key, {}).get('mode', 'default')
 
     @property
+    def name(self):
+        return self.conf['name']
+
+    @property
     def cell_classification_mode(self):
         return self._get_mode('cell_classification')
     

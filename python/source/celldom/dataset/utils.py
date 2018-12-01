@@ -11,3 +11,4 @@ def get_data_files(data_dir, sort_by='image_name', **kwargs):
         df = df.sort_values(sort_by)
 
     return df
+

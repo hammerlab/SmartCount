@@ -143,13 +143,15 @@ def get_image_key(image_type, image_field, properties):
 
 class Cytometer(object):
 
-    def __init__(self, config, data_dir, output_mode='w', enable_focus_scores=True, cell_detection_threshold=None):
+    def __init__(self, config, data_dir, output_mode='w',
+                 enable_focus_scores=True, enable_registration=True, cell_detection_threshold=None):
         self.config = config
         self.model_paths = _resolve_paths(config.get_cytometer_config())
         self.chip_config = config.get_chip_config()
         self.data_dir = data_dir
         self.output_mode = output_mode
         self.enable_focus_scores = enable_focus_scores
+        self.enable_registration = enable_registration
         self.cell_detection_threshold = cell_detection_threshold
 
         self.datastore = None
@@ -299,7 +301,8 @@ class Cytometer(object):
         # Extract all relevant information
         partitions, norm_image, norm_centers, neighbors, rotation = apartment_extraction.extract(
             image, self.marker_model, self.chip_config,
-            digit_model=self.digit_model, cell_model=self.cell_model, focus_model=self.focus_model, dpf=dpf
+            digit_model=self.digit_model, cell_model=self.cell_model, focus_model=self.focus_model,
+            enable_registration=self.enable_registration, dpf=dpf
         )
 
         acq_data = pd.DataFrame([dict(

@@ -1,6 +1,7 @@
 import re
 import pandas as pd
 import celldom
+import os.path as osp
 from celldom.config import chip_config
 from celldom.config import analysis_config
 
@@ -202,3 +203,20 @@ def get_exp_config_by_name(name):
     return ExperimentConfig(celldom.get_config('experiment', name))
 
 
+def resolve(config):
+    """Load an experiment configuration from a path or name
+
+    Args:
+        config: String path for config or name (i.e. filename) of configuration to check against repo configuration
+            location; if this is already an ExperimentConfig instance, it will be returned as-is
+    Returns:
+        ExperimentConfig instance
+    """
+    if isinstance(config, ExperimentConfig):
+        return config
+    if not isinstance(config, str):
+        raise ValueError('Cannot resolve config for object of type {}'.format(config))
+    if osp.exists(config):
+        return ExperimentConfig(config)
+    else:
+        return get_exp_config_by_name(config)

@@ -10,7 +10,8 @@ from collections import OrderedDict
 
 
 def create_chip_configuration(annotation_csv, chip_name, marker_spacing, apt_num_range, st_num_range,
-                              apt_num_rotation=0, st_num_rotation=0, single_digit_pad=3):
+                              apt_num_rotation=0, st_num_rotation=0, single_digit_pad=3,
+                              template_image_path=None):
     """Create a chip configuration from a VIA annotations export file (as csv)
 
     Args:
@@ -88,6 +89,12 @@ def create_chip_configuration(annotation_csv, chip_name, marker_spacing, apt_num
     # {'name': 'point', 'cx': 256, 'cy': 393}
     mc = shapes['marker_center']
 
+    temp_config['apt_bbox'] = dict(
+        left=cb['x'],
+        top=cb['y'],
+        right=cb['x'] + cb['width'],
+        bottom=cb['y'] + cb['height']
+    )
     temp_config['apt_margins'] = dict(
         left=-(mc['cx'] - cb['x']),
         right=cb['x'] + cb['width'] - mc['cx'],
@@ -186,21 +193,16 @@ def create_chip_configuration(annotation_csv, chip_name, marker_spacing, apt_num
 
         temp_config['components'][comp_name] = {'boundary': points}
 
+    #########################
+    # Set template image path
+    #########################
+    if template_image_path is not None:
+        temp_config['template_image_path'] = template_image_path
+    else:
+        # Default to location in repo typically used to store template single apartment image for annotation
+        temp_config['template_image_path'] = osp.join(
+            celldom.get_repo_dir(), 'config', 'chip', 'chip-' + chip_name, 'chip-' + chip_name + '.png')
+
     return temp_config
 
-    #######################
-    # Save or print results
-    #######################
-
-    # # If save selected, save to static path in repo
-    # if save_result:
-    #     exp_path = osp.join(celldom.get_repo_dir(), 'config', 'chip', chip_name + '.yaml')
-    #     with open(exp_path, 'w') as fd:
-    #         yaml.dump(temp_config, fd)
-    #     print('Resulting configuration saved to "{}"'.format(exp_path))
-    # # Otherwise, print to stdout for redirection
-    # else:
-    #     sio = io.StringIO()
-    #     yaml.dump(temp_config, sio)
-    #     print(sio.getvalue())
 

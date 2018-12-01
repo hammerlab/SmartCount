@@ -1,0 +1,54 @@
+apt_bbox: {bottom: 203, left: 9, right: 190, top: 5}
+apt_margins: {bottom: 17, left: -90, right: 91, top: -181}
+apt_num_digit_bounds:
+- {bottom: 24, left: 0, right: 16, top: 0}
+- {bottom: 24, left: 16, right: 32, top: 0}
+apt_num_digit_count: 2
+apt_num_margins: {bottom: -9, left: 51, right: 83, top: -33}
+apt_num_range: [0, 46]
+apt_num_rotation: 0
+components:
+  chamber:
+    boundary:
+    - [88, 19]
+    - [75, 20]
+    - [60, 25]
+    - [40, 37]
+    - [27, 54]
+    - [18, 74]
+    - [15, 94]
+    - [19, 114]
+    - [28, 134]
+    - [42, 149]
+    - [58, 159]
+    - [76, 165]
+    - [90, 183]
+    - [106, 164]
+    - [125, 157]
+    - [145, 142]
+    - [156, 127]
+    - [162, 108]
+    - [164, 87]
+    - [159, 66]
+    - [149, 49]
+    - [138, 36]
+    - [127, 28]
+    - [112, 22]
+    - [98, 20]
+  trap:
+    boundary:
+    - [71, 180]
+    - [109, 180]
+    - [109, 198]
+    - [71, 198]
+marker_spacing: {horizontal: 198, vertical: 198}
+name: G1v2
+st_num_digit_bounds:
+- {bottom: 24, left: 0, right: 17, top: 0}
+- {bottom: 24, left: 17, right: 34, top: 0}
+st_num_digit_count: 2
+st_num_margins: {bottom: -9, left: -81, right: -47, top: -33}
+st_num_range: [0, 31]
+st_num_rotation: 0
+template_image_path: /lab/repos/celldom/config/chip/chip-G1v2/chip-G1v2.png
+
