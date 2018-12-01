@@ -1,0 +1,11 @@
+resources:
+  models:
+    marker:
+      type: file
+      location: 'data/celldom/Models/r0.8/marker_model/marker_model.h5'
+    digit:
+      type: file
+      location: 'data/celldom/Models/r0.8/single_digit_model/single_digit_model.h5'
+    cell:
+      type: file
+      location: 'data/celldom/Models/r0.8/cell_model/cell_model.h5'

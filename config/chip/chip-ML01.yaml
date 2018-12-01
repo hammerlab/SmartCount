@@ -1,48 +1,40 @@
-apt_bbox: {bottom: 284, left: 58, right: 257, top: 32}
-apt_margins: {bottom: 209, left: -153, right: 46, top: -43}
+apt_margins: {bottom: 45, left: -156, right: 49, top: -179}
 apt_num_digit_bounds:
-- {bottom: 29, left: 0, right: 21, top: 0}
-- {bottom: 29, left: 15, right: 38, top: 0}
-- {bottom: 29, left: 32, right: 53, top: 0}
+- {bottom: 26, left: 0, right: 22, top: 0}
+- {bottom: 26, left: 13, right: 38, top: 0}
+- {bottom: 26, left: 29, right: 51, top: 0}
 apt_num_digit_count: 3
-apt_num_margins: {bottom: 44, left: -11, right: 42, top: 15}
+apt_num_margins: {bottom: -101, left: -8, right: 43, top: -127}
 apt_num_range: [0, 46]
 apt_num_rotation: 0
 components:
   chamber:
     boundary:
-    - [74, 13]
-    - [69, 21]
-    - [61, 36]
-    - [56, 51]
-    - [54, 67]
-    - [54, 152]
-    - [56, 170]
-    - [61, 189]
-    - [74, 210]
-    - [89, 224]
-    - [98, 231]
-    - [106, 225]
-    - [119, 214]
-    - [131, 199]
-    - [137, 186]
-    - [142, 171]
-    - [143, 158]
-    - [143, 64]
-    - [142, 53]
-    - [138, 37]
-    - [133, 28]
-    - [127, 20]
-    - [123, 13]
-marker_spacing: {horizontal: 207, vertical: 217}
+    - [81, 8]
+    - [128, 9]
+    - [145, 35]
+    - [148, 106]
+    - [143, 173]
+    - [124, 205]
+    - [105, 221]
+    - [98, 221]
+    - [68, 188]
+    - [58, 160]
+    - [61, 46]
+    - [70, 21]
+  trap:
+    boundary:
+    - [57, 196]
+    - [151, 196]
+    - [151, 255]
+    - [57, 255]
+marker_spacing: {horizontal: 208, vertical: 218}
 name: ML01
 st_num_digit_bounds:
-- {bottom: 30, left: 0, right: 21, top: 0}
-- {bottom: 30, left: 15, right: 38, top: 0}
-- {bottom: 30, left: 32, right: 53, top: 0}
+- {bottom: 26, left: 0, right: 22, top: 0}
+- {bottom: 26, left: 14, right: 39, top: 0}
+- {bottom: 26, left: 31, right: 53, top: 0}
 st_num_digit_count: 3
-st_num_margins: {bottom: 143, left: -150, right: -97, top: 113}
+st_num_margins: {bottom: -4, left: -149, right: -96, top: -30}
 st_num_range: [0, 127]
 st_num_rotation: 0
-template_image_path: /lab/repos/celldom/config/chip/chip-ML01/chip-ML01.png
-
