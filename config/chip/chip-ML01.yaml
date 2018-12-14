@@ -1,40 +1,45 @@
-apt_margins: {bottom: 45, left: -156, right: 49, top: -179}
+apt_bbox: {bottom: 291, left: 10, right: 215, top: 22}
+apt_margins: {bottom: 74, left: -155, right: 50, top: -195}
 apt_num_digit_bounds:
-- {bottom: 26, left: 0, right: 22, top: 0}
-- {bottom: 26, left: 13, right: 38, top: 0}
-- {bottom: 26, left: 29, right: 51, top: 0}
+- {bottom: 25, left: 0, right: 19, top: 0}
+- {bottom: 25, left: 14, right: 36, top: 0}
+- {bottom: 25, left: 30, right: 49, top: 0}
 apt_num_digit_count: 3
-apt_num_margins: {bottom: -101, left: -8, right: 43, top: -127}
+apt_num_margins: {bottom: -102, left: -8, right: 41, top: -127}
 apt_num_range: [0, 46]
 apt_num_rotation: 0
 components:
   chamber:
     boundary:
-    - [81, 8]
-    - [128, 9]
-    - [145, 35]
-    - [148, 106]
-    - [143, 173]
-    - [124, 205]
-    - [105, 221]
-    - [98, 221]
-    - [68, 188]
-    - [58, 160]
-    - [61, 46]
-    - [70, 21]
+    - [80, 26]
+    - [83, 24]
+    - [126, 25]
+    - [141, 46]
+    - [145, 68]
+    - [144, 174]
+    - [135, 201]
+    - [127, 216]
+    - [106, 235]
+    - [98, 235]
+    - [76, 214]
+    - [65, 190]
+    - [61, 166]
+    - [62, 64]
+    - [71, 37]
   trap:
     boundary:
-    - [57, 196]
-    - [151, 196]
-    - [151, 255]
-    - [57, 255]
+    - [78, 231]
+    - [131, 231]
+    - [131, 269]
+    - [78, 269]
 marker_spacing: {horizontal: 208, vertical: 218}
 name: ML01
 st_num_digit_bounds:
-- {bottom: 26, left: 0, right: 22, top: 0}
-- {bottom: 26, left: 14, right: 39, top: 0}
-- {bottom: 26, left: 31, right: 53, top: 0}
+- {bottom: 25, left: 0, right: 19, top: 0}
+- {bottom: 25, left: 13, right: 35, top: 0}
+- {bottom: 25, left: 30, right: 49, top: 0}
 st_num_digit_count: 3
-st_num_margins: {bottom: -4, left: -149, right: -96, top: -30}
+st_num_margins: {bottom: -3, left: -147, right: -98, top: -28}
 st_num_range: [0, 127]
 st_num_rotation: 0
+template_image_path: /lab/repos/celldom/config/chip/chip-ML01/chip-ML01.png
