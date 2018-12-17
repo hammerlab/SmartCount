@@ -6,7 +6,7 @@ from skimage.feature import register_translation
 from celldom.extract import marker_extraction, digit_extraction, cell_extraction
 from celldom.extract import NO_IMAGES
 from celldom.exception import NoMarkerException
-from celldom.utils import assert_rgb, rgb2gray, extract_patch
+from celldom.utils import assert_rgb, assert_expr, rgb2gray, extract_patch
 
 
 def _rotate_vectors_2d(arr, rotation, origin):
@@ -19,10 +19,20 @@ def _rotate_vectors_2d(arr, rotation, origin):
 
 
 def apply_normalization(img, centers, rotation=None, scale=None):
-    """Apply inferred rotations and scales to a raw image and its corresponding marker locations"""
+    """Apply inferred rotations and scales to a raw image and its corresponding marker locations
+
+    Args:
+        img: Image array with shape (rows, cols, channels) where channels dimension size is arbitrary
+    """
+    dtype = img.dtype
 
     # If a rotation is given, apply it to the image and [carefully] to the marker vectors as well
     if rotation:
+        # To verify beyond RGB, given `img` as RGB:
+        # np.allclose(
+        #   transform.rotate(np.concatenate((img, img), axis=2), angle=15)[..., :3],
+        #   transform.rotate(img, angle=15)
+        # )
         img = transform.rotate(img, rotation)
 
         # Use same formula for origin as in transform.rotate
@@ -33,8 +43,19 @@ def apply_normalization(img, centers, rotation=None, scale=None):
 
     # If a scale is given, apply that too
     if scale:
-        img = transform.rescale(img, scale)
+        # To verify beyond RGB, given `img` as RGB:
+        # kwargs = dict(anti_aliasing=True, mode='constant', multichannel=True)
+        # np.allclose(
+        #   transform.rescale(np.concatenate((img, img), axis=2), .5, **kwargs)[..., :3],
+        #   transform.rescale(img, .5, **kwargs)
+        # )
+        img = transform.rescale(img, scale, anti_aliasing=True, mode='constant', multichannel=True)
         centers = centers[['y', 'x']] * scale
+
+    # If image type/range has changed, convert back to original
+    if img.dtype != dtype:
+        assert np.all(img >= 0) and np.all(img <= 1)
+        img = rescale_intensity(img, in_range=(0, 1), out_range=str(dtype)).astype(dtype)
 
     return img, centers
 
@@ -108,8 +129,8 @@ def get_apartment_image_translation(img, chip_config, patch_size=(16, 16)):
     return shifts.astype(int), error, (ref_patch, tgt_patch)
 
 
-def partition_chip(img, centers, chip_config, focus_model=None, enable_registration=True):
-    """Extract all relevant patches from raw, multi-component images (ie a chip)"""
+def partition_chip(img, centers, chip_config, expr_image=None, focus_model=None, enable_registration=True):
+    """Extract all relevant patches from raw, multi-component images """
     partitions = []
 
     # Sort centers to get a non-arbitrary apartment id setting
@@ -134,6 +155,12 @@ def partition_chip(img, centers, chip_config, focus_model=None, enable_registrat
         # Ensure that apartment image is RGB
         assert_rgb(apt_img)
 
+        # Extract expression image as well (if applicable)
+        apt_expr_image = None
+        if expr_image is not None:
+            apt_expr_image = partition_around_marker(expr_image, center, chip_config['apt_margins'])
+            assert apt_expr_image is not None
+
         # If an image focus/quality model was given, use it to score the apartment image
         focus_score = 0
         if focus_model is not None:
@@ -156,6 +183,7 @@ def partition_chip(img, centers, chip_config, focus_model=None, enable_registrat
             apt_image=apt_img,
             apt_image_height=apt_img.shape[0],
             apt_image_width=apt_img.shape[1],
+            expr_image=apt_expr_image,
             focus_score=focus_score,
             apt_num_image=apt_num_img,
             apt_num_digit_images=apt_num_digit_imgs,
@@ -170,11 +198,18 @@ def partition_chip(img, centers, chip_config, focus_model=None, enable_registrat
 
 def extract(
         image, marker_model, chip_config,
+        expr_image=None, expr_channels=None,
         digit_model=None, cell_model=None, focus_model=None, enable_registration=True,
         dpf=NO_IMAGES, angle_tolerance=10, distance_tolerance=20):
 
-    # Make sure provided image is RGB
+    # Make sure provided image is RGB and that if provided, the expression image
+    # has dimensions matching expression channel labels
     assert_rgb(image)
+    if expr_image is not None:
+        assert_expr(expr_image, expr_channels)
+        assert image.shape[:2] == expr_image.shape[:2], \
+            'Expecting equally size landmark image shape ({}) and expression image shape ({})' \
+            .format(image.shape[:2], expr_image.shape[:2])
 
     ##################
     ## Extract Markers
@@ -210,12 +245,8 @@ def extract(
 
     # Apply inferred rotation
     norm_image, norm_centers = apply_normalization(image, centers, rotation=rotation)
-
-    # Rotation and rescaling may result in a change of bit depth which should be undone
-    # as soon as possible to maintain consistency with uint8 processing
-    if norm_image.dtype != np.uint8:
-        assert np.all(norm_image >= 0) and np.all(norm_image <= 1)
-        norm_image = rescale_intensity(norm_image, in_range=(0, 1), out_range=np.uint8).astype(np.uint8)
+    if expr_image is not None:
+        expr_image, _ = apply_normalization(expr_image, centers, rotation=rotation)
 
     ################################
     ## Extract Around Marker Offsets
@@ -223,7 +254,8 @@ def extract(
 
     partitions = partition_chip(
         norm_image, norm_centers, chip_config,
-        focus_model=focus_model, enable_registration=enable_registration
+        expr_image=expr_image, focus_model=focus_model,
+        enable_registration=enable_registration
     )
 
     # Add digit inference to address images if a digit model was provided
@@ -238,7 +270,9 @@ def extract(
     if cell_model is not None:
         for partition in partitions:
             partition['cells'], partition['components'] = cell_extraction.extract(
-                partition['apt_image'], cell_model, chip_config, dpf=dpf)
+                partition['apt_image'], cell_model, chip_config,
+                expr=partition['expr_image'], expr_channels=expr_channels, dpf=dpf
+            )
 
     return partitions, norm_image, norm_centers, neighbors, rotation
 

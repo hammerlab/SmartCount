@@ -10,6 +10,13 @@ def assert_rgb(image):
     return image
 
 
+def assert_expr(image, channels):
+    assert image.ndim == 3, 'Expecting 3 dimension expression image but got image with shape {}'.format(image.shape)
+    assert image.shape[2] == len(channels), \
+        'Number of expression image channels ({}) does not equal channel labels ({})'.format(image.shape[2], channels)
+    return image, channels
+
+
 def rgb2gray(image):
     """Convert 3 channel RGB to gray scale uint8
 
