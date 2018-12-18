@@ -64,7 +64,7 @@ class Celldom(object):
 
     def run_processor(
             self, experiment_config_path, data_file_patterns, output_dir,
-            sample_rate=None, sample_count=None, max_failures=10, images_to_save=DEFAULT_IMAGES_TO_SAVE,
+            sample_count=None, max_failures=10, images_to_save=DEFAULT_IMAGES_TO_SAVE,
             output_mode='w', enable_focus_scores=False, enable_registration=True, cell_detection_threshold=None):
         """Run cell counting/cytometry for a given experiment configuration and set of raw data files
 
@@ -75,7 +75,6 @@ class Celldom(object):
                 - "/lab/data/dataset/dataset03/*/*.tif"
                 - ["/lab/data/dataset/dataset03/*Chip1/*.tif","/lab/data/dataset/dataset03/*Chip3/*.tif"]
             output_dir: Directory in which results will be stored
-            sample_rate: Float in (0, 1] indicating a fractional sampling rate of raw files to use
             sample_count: Fixed number of raw files to limit processing to
             max_failures: Maximum number of allowable image processing failures before entire command fails (default
                 is 10)
@@ -104,6 +103,7 @@ class Celldom(object):
 
         if len(files) == 0:
             raise ValueError('No data files found to process for patterns "{}"'.format(data_file_patterns))
+        logger.info('Found %s raw data files to process', len(files))
 
         # Resolve flags for images to save
         if images_to_save is not None:
@@ -111,20 +111,6 @@ class Celldom(object):
                 if name not in IMAGE_NAMES:
                     raise ValueError('Image type "{}" is not valid (must be one of {})'.format(name, IMAGE_NAMES))
         dpf = _persistence_flags_from_names(images_to_save)
-
-        logger.info('Found %s raw data files to process', len(files))
-        if sample_count is not None:
-            if sample_count < 1:
-                raise ValueError('Sample count must be >= 1 (not {})'.format(sample_count))
-            logger.info('Randomly selecting (at most) %s files to process', sample_count)
-            n = min(len(files), sample_count)
-            files = pd.Series(files).sample(n=n, random_state=celldom.seed)
-        elif sample_rate is not None:
-            if sample_rate <= 0 or sample_rate > 1:
-                raise ValueError('Sample rate must in (0, 1] (not {})'.format(sample_rate))
-            logger.info('Sampling raw files using given rate %s', sample_rate)
-            files = pd.Series(files).sample(frac=sample_rate, random_state=celldom.seed)
-        logger.info('Number of data files chosen to process: %s', len(files))
 
         logger.info('Loading experiment configuration from path: %s', experiment_config_path)
         exp_config = experiment_config.ExperimentConfig(celldom.read_config(experiment_config_path))
@@ -135,7 +121,9 @@ class Celldom(object):
         logger.info('Running data processor (output dir = %s) ...', output_dir)
         processing.run_cytometer(
             exp_config, output_dir, files,
-            max_failures=max_failures, dpf=dpf,
+            sample_count=sample_count,
+            max_failures=max_failures,
+            dpf=dpf,
             # Cytometer arguments
             output_mode=output_mode,
             enable_focus_scores=enable_focus_scores,

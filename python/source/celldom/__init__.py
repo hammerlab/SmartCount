@@ -18,10 +18,13 @@ ENV_CELLDOM_NB_LOG_LEVEL = 'CELLDOM_NB_LOG_LEVEL'
 ENV_CELLDOM_IMAGE_COMPRESSION_CODEC = 'CELLDOM_IMAGE_COMPRESSION_CODEC'
 ENV_CELLDOM_IMAGE_COMPRESSION_LEVEL = 'CELLDOM_IMAGE_COMPRESSION_LEVEL'
 
+pkg_dir = osp.abspath(osp.dirname(__file__))
+test_data_dir = osp.normpath(osp.join(pkg_dir, '..', 'tests', 'data'))
 
 ########################
 # Directory Resolution #
 ########################
+
 
 def get_data_dir():
     """Return main directory under which all Celldom data should be stored (models, images, results, etc).

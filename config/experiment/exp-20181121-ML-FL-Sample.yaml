@@ -27,5 +27,5 @@ groupings:
   # includes the properties "lane" and "concentration" where "lane" corresponds to one of the arrays on a chip
   # with 3 such arrays and concentration to the amount of some drug administered to all apartments in that chip,
   # then this list should be set as [lane, concentration] -- all analysis will then be grouped by these values.
-  experimental_conditions: [day, cohort]
+  experimental_conditions: [cohort]
 

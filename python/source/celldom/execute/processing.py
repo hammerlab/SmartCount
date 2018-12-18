@@ -1,6 +1,7 @@
 import tqdm
 import celldom
 from celldom.core import cytometry
+from celldom.core import acquisition
 from celldom.extract import APT_IMAGES
 from celldom.exception import NoMarkerException
 import logging
@@ -12,7 +13,8 @@ MAX_FILES_IN_MEM_RES = 500
 
 
 def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
-                  return_results=False, save_results=True, dpf=APT_IMAGES, **kwargs):
+                  return_results=False, save_results=True, sample_count=None,
+                  max_invalid_acquisitions=0, dpf=APT_IMAGES, **kwargs):
 
     if return_results and len(files) > MAX_FILES_IN_MEM_RES:
         raise ValueError(
@@ -22,17 +24,26 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
             'and deal with trimming results in memory'.format(len(files), MAX_FILES_IN_MEM_RES)
         )
 
+    # Group files into acquisition instances
+    logger.info('Collapsing image files into acquisitions ...')
+    acqs = acquisition.collapse_acquisitions(files, exp_config, max_invalid_acquisitions=max_invalid_acquisitions)
+    logger.info('%s image files collapsed into %s acquisitions', len(files), len(acqs))
+
+    # Apply sampling, if requested
+    if sample_count is not None:
+        if sample_count < 1:
+            raise ValueError('Sample count must be >= 1 (not {})'.format(sample_count))
+        logger.info('Selecting first %s acquisitions', sample_count)
+        # Making this random may be useful in the future, but for now an arbitrary selection will do
+        acqs = acqs[:sample_count]
+
+    logger.info('Beginning processing of %s acquisitions ...', len(acqs))
     results = []
     with cytometry.Cytometer(exp_config, output_dir, **kwargs) as cytometer:
         n_fail = 0
-        for i, f in tqdm.tqdm(enumerate(files), total=len(files)):
+        for i, acq in tqdm.tqdm(enumerate(acqs), total=len(acqs)):
             try:
-                logger.debug('Processing file "%s"', f)
-
-                # Specify an "Acquisition", which exists to also make it possible
-                # to associate custom metadata with records as well as standardize
-                # image pre-processing
-                acq = cytometry.Acquisition(exp_config, f)
+                logger.debug('Processing acquisition for path "%s"', acq.get_primary_path())
 
                 # Analyze the image
                 result = cytometer.analyze(acq, dpf=dpf)
