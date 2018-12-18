@@ -1,0 +1,26 @@
+name: exp-20181010-G3-K562-imatinib-nilotinib-dasatinib-control
+chip: {name: chip-G03}
+cytometer: {name: cytometer-02}
+analysis: {name: default}
+acquisition:
+  magnification: 16
+  reflection: false
+metadata:
+  # Example file path: */2018-10-10-K562-Drug-Tests-Full/2018-10-10 Blue 1 Control 0 hr/BFF_16X_St_000_Apt_000_201810101752.tif
+  fields:
+    datetime:
+      regex: '[0-9]{12}'
+      format: '%Y%m%d%H%M'
+    color: 'Blue|Orange|Yellow|Red'
+    condition: '1|2|3|4'
+    hours: '[0-9]{1,3}'
+    cohort: 'Control|Imatinib 150nM|Imatinib 50nM|Nilotinib 8nM|Nilotinib 2.7nM|Dasatinib 0.5nM|Dasatinib 0.167nM'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+  path_format: '.*/.*/.* {color} {condition} {cohort} {hours} hr/BFF_16X_St_{street}_Apt_{apartment}_{datetime}.tif'
+groupings:
+  # This list should include all fields necessary to identify a set of values specific to an experimental condition
+  # *IMPORTANT* Combinations of these fields must correspond to distinct apt_num/st_num namespaces (which
+  # usually translates to defining individual chips)
+  experimental_conditions: [color, condition, cohort]
+

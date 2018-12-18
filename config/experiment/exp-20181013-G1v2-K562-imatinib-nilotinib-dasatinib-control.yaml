@@ -1,0 +1,22 @@
+name: exp-20181013-G1v2-K562-imatinib-nilotinib-dasatinib-control
+chip: {name: chip-G1v2}
+cytometer: {name: cytometer-03}
+analysis: {name: default}
+acquisition:
+  magnification: 16
+  reflection: false
+metadata:
+  # Example file path: ./JeffsData/2018-10-15-K562-G1-Drug-Test/Control/Chip01-Blue/2018-10-15-K562-G1-Blue-1-Control-0hr/BFF_16X_St_000_Apt_000_201810152004.tif
+  fields:
+    datetime:
+      regex: '[0-9]{12}'
+      format: '%Y%m%d%H%M'
+    experimental_name: '2018-10-15-K562-G1-Drug-Test'
+    chip: 'Chip01-Blue|Chip02-Blue|Chip01-Yellow|Chip02-Yellow|Chip01-Orange|Chip02-Orange|Chip01-Red|Chip02-Red'
+    drug: 'Control|150nM-Imatinib|2.7nM-Nilotinib|0.05nM-Dasatinib'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+  path_format: '.*/JeffsData/{experimental_name}/{drug}/{chip}/.*/BFF_16X_St_{street}_Apt_{apartment}_{datetime}.tif'
+groupings:
+  experimental_conditions: [experimental_name, drug, chip]
+
