@@ -107,7 +107,7 @@ def get_image_key(image_type, image_field, properties):
 
 class Cytometer(object):
 
-    def __init__(self, config, data_dir, output_mode='w',
+    def __init__(self, config, data_dir=None, output_mode='w',
                  enable_focus_scores=True, enable_registration=True, cell_detection_threshold=None):
         self.config = config
         self.model_paths = _resolve_paths(config.get_cytometer_config())
@@ -153,12 +153,13 @@ class Cytometer(object):
         tf_conf = celldom.initialize_keras_session()
 
         # Initialize datastore to maintain results
-        self.datastore = HDF5Datastore(self.data_dir, self.output_mode, data_file='data.h5')
+        if self.data_dir is not None:
+            self.datastore = HDF5Datastore(self.data_dir, self.output_mode, data_file='data.h5')
 
-        comp_codec, comp_level = image_compression_codec(), image_compression_level()
-        logger.debug('Initializing image storage with codec %s (level = %s)', comp_codec, comp_level)
-        self.images = HDF5Datastore(self.data_dir, self.output_mode,
-                                    data_file='images.h5', complib=comp_codec, complevel=comp_level)
+            comp_codec, comp_level = image_compression_codec(), image_compression_level()
+            logger.debug('Initializing image storage with codec %s (level = %s)', comp_codec, comp_level)
+            self.images = HDF5Datastore(self.data_dir, self.output_mode,
+                                        data_file='images.h5', complib=comp_codec, complevel=comp_level)
 
         # Initialize predictive models
         self.digit_model = keras.models.load_model(self.model_paths['digit'])
@@ -328,7 +329,14 @@ class Cytometer(object):
                 self._save(table, df)
         return self
 
+    def _check_save_available(self):
+        if self.data_dir is None:
+            raise ValueError(
+                'Cytometer must be initialized with optional "data_dir" '
+                'argument set in order to save results')
+
     def _save_images(self, key, df, image_field):
+        self._check_save_available()
         field_meta = SUPPORTED_IMAGE_FIELDS[image_field]
         cols = field_meta['key_fields'] + [image_field]
         for i, r in df[cols].iterrows():
@@ -338,6 +346,7 @@ class Cytometer(object):
             self.images.save_image(get_image_key(key, image_field, r), image)
 
     def _save(self, key, df):
+        self._check_save_available()
         d = df.copy()
 
         # Convert non-numeric fields to truncated strings (and remove any image fields)

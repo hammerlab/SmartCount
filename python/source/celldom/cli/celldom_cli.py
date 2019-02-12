@@ -45,6 +45,13 @@ def _exec_nb(nb_name, data_dir, params, output_path=None, output_filename=None):
     pm.execute_notebook(input_path, output_path, parameters=params)
     return output_path
 
+def _resolve_files(patterns):
+    files = []
+    if isinstance(patterns, str):
+        patterns = [patterns]
+    for pattern in patterns:
+        files.extend(glob.glob(pattern))
+    return sorted(list(set(files)))
 
 def _persistence_flags_from_names(names):
     flags = dict(NO_IMAGES._asdict())
@@ -94,12 +101,7 @@ class Celldom(object):
                 0 and 1 and if not set, a default in celldom.config.cell_config.CellInferenceConfig will be used instead
         """
         # Get all matching files, deduplicate and sort
-        files = []
-        if isinstance(data_file_patterns, str):
-            data_file_patterns = [data_file_patterns]
-        for pattern in data_file_patterns:
-            files.extend(glob.glob(pattern))
-        files = sorted(list(set(files)))
+        files = _resolve_files(data_file_patterns)
 
         if len(files) == 0:
             raise ValueError('No data files found to process for patterns "{}"'.format(data_file_patterns))
@@ -113,7 +115,7 @@ class Celldom(object):
         dpf = _persistence_flags_from_names(images_to_save)
 
         logger.info('Loading experiment configuration from path: %s', experiment_config_path)
-        exp_config = experiment_config.ExperimentConfig(celldom.read_config(experiment_config_path))
+        exp_config = experiment_config.ExperimentConfig(experiment_config_path)
 
         if not osp.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
@@ -131,6 +133,52 @@ class Celldom(object):
             cell_detection_threshold=cell_detection_threshold
         )
         logger.info('Processing complete')
+
+    def run_annotator(
+            self, experiment_config_path, data_file_patterns, output_dir,
+            copy_original_images=False, cell_detection_threshold=None):
+        """Run cell detection on images and save results as RectLabel annotations
+
+        Args:
+            experiment_config_path: Path to experiment configuration
+                (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
+            data_file_patterns: Input image path glob patterns as either a single string or list of strings; Examples:
+                - "/lab/data/dataset/dataset03/*/*.tif"
+                - ["/lab/data/dataset/dataset03/*Chip1/*.tif","/lab/data/dataset/dataset03/*Chip3/*.tif"]
+            output_dir: Directory in which results will be stored
+            copy_original_images: Determines whether or not the input images (matching `data_file_patterns`) will
+                be copied into the output directory along with the annotation XML files (default False)
+            cell_detection_threshold: Confidence threshold for cell detections; this should be a number between
+                0 and 1 and if not set, a default in celldom.config.cell_config.CellInferenceConfig will be used instead
+        """
+        from celldom import annotation
+
+        # Get all matching files, deduplicate and sort
+        files = _resolve_files(data_file_patterns)
+        if len(files) == 0:
+            raise ValueError('No data files found to process for patterns "{}"'.format(data_file_patterns))
+        logger.info('Found %s raw data files to process', len(files))
+
+        # Run cell detector
+        logger.info('Beginning cell detection for %s files', len(files))
+        exp_config = experiment_config.ExperimentConfig(experiment_config_path)
+        res = list(processing.run_cell_detection(exp_config, files, cell_detection_threshold=cell_detection_threshold))
+        logger.info('Cell detection complete')
+        if len(res) != len(files):
+            raise AssertionError('Expecting {} results but got {} from cell detector'.format(len(files), len(res)))
+
+        # Convert cell objects to RectLabel annotation files
+        logger.info('Converting detected cells into RectLabel xml')
+        docs = [annotation.get_image_rectlabel_xml(r[0], r[1], r[2]) for r in res]
+        if len(docs) != len(files):
+            raise AssertionError('Expecting {} results but got {} from xml generator'.format(len(files), len(docs)))
+
+        logger.info(
+            'Writing XML annotations to path "%s" (%s original images copied)',
+            output_dir, 'with' if copy_original_images else 'without'
+        )
+        annotation.save_image_rectlabel_annotations(output_dir, dict(zip(files, docs)), copy=copy_original_images)
+        logger.info('Annotation complete (all results in %s)', output_dir)
 
     def run_overview_app(self, experiment_config_path, output_dir, debug=False):
         """Run the experiment output overview application

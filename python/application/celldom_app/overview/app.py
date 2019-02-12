@@ -166,36 +166,59 @@ def get_page_apartments():
                         html.Div(
                             dcc.Dropdown(
                                 id='apartment-dropdown',
-                                placeholder='Choose apartment (must be selected in table first)'
+                                placeholder='Apartment (must be selected in table first)'
                             ),
-                            style={'display': 'inline-block', 'width': '60%'}
+                            style={'display': 'inline-block', 'width': '50%'}
                         ),
                         html.Div(
-                            html.Button(
-                                'Export',
-                                id='export-apartment-images',
-                                style={'width': '100%', 'height': '35px', 'line-height': '18px'}
+                            dcc.Textarea(
+                                placeholder='Filter ("hr in [0,24] and hr != 72")',
+                                style={'width': '100%', 'margin': '0px', 'min-height': '35px', 'height': '35px'},
+                                id='apartment-time-filter'
                             ),
-                            style={
-                                'display': 'inline-block', 'width': '20%',
-                                'vertical-align': 'top', 'padding-top': '1px'
-                            }
+                            style={'display': 'inline-block', 'width': '38%'}
                         ),
                         html.Div(
                             dcc.Checklist(
-                                options=[{'label': 'Show Markers', 'value': 'enabled'}],
+                                options=[{'label': 'Centroids', 'value': 'enabled'}],
                                 values=['enabled'],
                                 id='enable-cell-marker'
                             ),
                             style={
-                                'display': 'inline-block', 'width': '20%',
+                                'display': 'inline-block', 'width': '12%',
                                 'vertical-align': 'top', 'padding-top': '4px'
                             }
                         ),
                         html.Div(
                             id='apartment-animation',
                             style={'overflow-x': 'scroll', 'white-space': 'nowrap'}
-                        )
+                        ),
+                        html.Div([
+                            html.Div(
+                                dcc.Dropdown(
+                                    id='export-apartment-type',
+                                    options=[
+                                        {'label': 'TIF', 'value': 'tif'},
+                                        {'label': 'TIF (+centroids)', 'value': 'tif_markers'},
+                                        {'label': 'RectLabel Annotations', 'value': 'rl_annotations'}
+                                    ],
+                                    placeholder='Export Type',
+                                    clearable=False
+                                ),
+                                style={'display': 'inline-block', 'width': '50%', 'margin-top': '1px'}
+                            ),
+                            html.Div(
+                                html.Button(
+                                    'Export',
+                                    id='export-apartment-images',
+                                    style={'width': '100%', 'height': '35px', 'line-height': '18px'}
+                                ),
+                                style={
+                                    'display': 'inline-block', 'width': '50%',
+                                    'vertical-align': 'top', 'padding-top': '1px'
+                                }
+                            )
+                        ])
                     ],
                     className='five columns',
                     style={'margin-top': '0'}
@@ -532,18 +555,34 @@ def get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_
     return df.loc[selected_apartment]
 
 
+def get_apartment_time_filter_predicate(filter):
+    if filter is None or not filter.strip():
+        return lambda *args: True
+
+    def predicate(hr):
+        return eval(filter, {'hr': hr})
+    return predicate
+
+
 @app.callback(
     Output('apartment-animation', 'children'),
     [Input('apartment-dropdown', 'value'), Input('enable-cell-marker', 'values')],
-    [State('table-apartments-data', 'selected_row_indices'), State('table-apartments-data', 'rows')]
+    [
+        State('table-apartments-data', 'selected_row_indices'),
+        State('table-apartments-data', 'rows'),
+        State('apartment-time-filter', 'value')
+    ]
 )
-def update_apartment_animations(selected_apartment, show_cell_marker, selected_row_indices, rows):
+def update_apartment_animations(selected_apartment, show_cell_marker, selected_row_indices, rows, time_filter):
     r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows)
     if r is None:
         return None
 
+    p = get_apartment_time_filter_predicate(time_filter)
     children = []
     for i in range(r['n']):
+        if not p(r['hours'][i]):
+            continue
         title = 'H{} D{} C{}'.format(r['hours'][i], r['dates'][i], r['cell_counts'][i])
         children.append(html.Div([
                 html.Div(title, style={'text-align': 'center'}),
@@ -562,21 +601,31 @@ def update_apartment_animations(selected_apartment, show_cell_marker, selected_r
     [Input('export-apartment-images', 'n_clicks')],
     [
         State('apartment-dropdown', 'value'),
-        State('enable-cell-marker', 'values'),
         State('table-apartments-data', 'selected_row_indices'),
-        State('table-apartments-data', 'rows')
+        State('table-apartments-data', 'rows'),
+        State('apartment-time-filter', 'value'),
+        State('export-apartment-type', 'value'),
     ]
 )
-def export_apartment_animations(_, selected_apartment, show_cell_marker, selected_row_indices, rows):
+def export_apartment_animations(_, selected_apartment, selected_row_indices, rows, time_filter, export_type):
+    export_type = export_type or 'tif'
+    show_cell_marker = export_type in ['tif_markers']
     r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows)
     if r is None:
         return None
-    titles = [
-        'H{} D{} C{}'.format(r['hours'][i], r['dates'][i], r['cell_counts'][i])
-        for i in range(r['n'])
-    ]
-    path = lib.export_apartment_images(selected_apartment, r['images'].tolist(), titles)
-    logger.info('Saved apartment (%s) images to path %s', selected_apartment, path)
+
+    p = get_apartment_time_filter_predicate(time_filter)
+    if export_type in ['tif', 'tif_markers']:
+        titles = [
+            'H{} D{} C{}'.format(r['hours'][i], r['dates'][i], r['cell_counts'][i])
+            for i in range(r['n']) if p(r['hours'][i])
+        ]
+        path = lib.export_apartment_images(selected_apartment, r['images'].tolist(), titles)
+        logger.info('Saved apartment (%s) images to path %s', selected_apartment, path)
+    elif export_type in ['rl_annotations']:
+        pass
+    else:
+        raise ValueError('Export type "{}" not yet supported'.format(export_type))
     
 
 @app.callback(

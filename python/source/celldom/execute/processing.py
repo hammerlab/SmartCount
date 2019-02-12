@@ -2,8 +2,10 @@ import tqdm
 import celldom
 from celldom.core import cytometry
 from celldom.core import acquisition
-from celldom.extract import APT_IMAGES
+from celldom.extract import APT_IMAGES, ALL_IMAGES
+from celldom.extract import cell_extraction
 from celldom.exception import NoMarkerException
+from skimage import io
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,7 +15,7 @@ MAX_FILES_IN_MEM_RES = 500
 
 
 def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
-                  return_results=False, save_results=True, sample_count=None,
+                  return_results=None, sample_count=None,
                   max_invalid_acquisitions=0, dpf=APT_IMAGES, **kwargs):
 
     if return_results and len(files) > MAX_FILES_IN_MEM_RES:
@@ -21,8 +23,13 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
             'Processing cannot be run with `return_results=True` and a large number of input data files '
             '(given {} files and threshold for this error is {}).  Either set return_results=False '
             '(in which case data is saved on disk) or specify smaller batches of files yourself '
-            'and deal with trimming results in memory'.format(len(files), MAX_FILES_IN_MEM_RES)
+            'and deal with trimming results in memory.  Nuclear option: '
+            'celldom.processing.MAX_FILES_IN_MEM_RES = float("inf")'
+            .format(len(files), MAX_FILES_IN_MEM_RES)
         )
+    # Default to returning results if no output directory given
+    if return_results is None:
+        return_results = output_dir is None
 
     # Group files into acquisition instances
     logger.info('Collapsing image files into acquisitions ...')
@@ -39,7 +46,7 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
 
     logger.info('Beginning processing of %s acquisitions ...', len(acqs))
     results = []
-    with cytometry.Cytometer(exp_config, output_dir, **kwargs) as cytometer:
+    with cytometry.Cytometer(exp_config, data_dir=output_dir, **kwargs) as cytometer:
         n_fail = 0
         for i, acq in tqdm.tqdm(enumerate(acqs), total=len(acqs)):
             try:
@@ -52,7 +59,7 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
                     results.append(result)
 
                 # Save the results
-                if save_results:
+                if output_dir is not None:
                     cytometer.save(*result)
 
             # If there are no markers, log a more succinct message and still count this event as a failure
@@ -74,3 +81,14 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
                 break
 
     return results if return_results else None
+
+
+def run_cell_detection(exp_config, files, **kwargs):
+    with cytometry.Cytometer(exp_config, data_dir=None, **kwargs) as cytometer:
+        cell_model = cytometer.cell_model
+        chip_config = exp_config.get_chip_config()
+        for file in tqdm.tqdm(files):
+            img = io.imread(file)
+            result = cell_extraction.extract(img, cell_model, chip_config, dpf=ALL_IMAGES)
+            result = file, img.shape, *result
+            yield result

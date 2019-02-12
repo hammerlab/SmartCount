@@ -81,6 +81,7 @@ def extract(img, cell_model, chip_config, expr=None, expr_channels=None, dpf=NO_
         cell = dict(
             cell_id=i,
             cell_image=props.intensity_image if dpf.cell_image else None,
+            coords=props.coords if dpf.cell_coords else None,
             # bbox format is min_row, min_col, max_row, max_col
             # - see http://scikit-image.org/docs/dev/api/skimage.measure.html#skimage.measure.regionprops
             # - use bbox instead of roi since they are not entirely identical

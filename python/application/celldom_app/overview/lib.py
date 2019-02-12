@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from celldom_app.overview import data
 from celldom import io as celldom_io
+from skimage import io as sk_io
 
 
 def get_array_graph_figure(df, metric, enable_normalize, value_range=None, agg_func=np.median, fill_value=None,
@@ -75,15 +76,21 @@ def get_array_graph_figure(df, metric, enable_normalize, value_range=None, agg_f
 
     return dict(data=fig_data, layout=fig_layout)
 
+#def _clean_
 
-def export_apartment_images(identifier, images, titles):
+def export_apartment_images(identifier, images, titles, type='tif', relpath=osp.join('export', 'apartment')):
     # Replace non-alnum with hyphen in identifier
     identifier = re.sub(r'\W+', '-', identifier)
 
     # Create path to export files (just tif for now)
-    path = data.get_output_path(osp.join('export', 'apartment'))
-    if not osp.exists(path):
-        os.makedirs(path, exist_ok=True)
-    path = osp.join(path, identifier + '.tif')
-    celldom_io.save_tiff(path, images, titles)
-    return path
+    exp_dir = data.get_output_path(relpath)
+    if not osp.exists(exp_dir):
+        os.makedirs(exp_dir, exist_ok=True)
+    if type == 'tif':
+        path = osp.join(exp_dir, identifier + '.tif')
+        celldom_io.save_tiff(path, images, titles)
+    elif type == 'png':
+        for image in images:
+            path = osp.join(exp_dir, identifier + '.tif')
+            sk_io.imsave()
+    return exp_dir
