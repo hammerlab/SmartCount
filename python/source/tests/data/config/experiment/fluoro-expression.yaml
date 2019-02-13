@@ -1,0 +1,28 @@
+name: fluoro-expr-exp
+chip: {name: chip-ML01}
+cytometer: {name: cytometer-05}
+analysis: {name: default}
+acquisition:
+  magnification: 10
+  reflection: true
+  type: 'bf-object+fl-expression'
+  channels:
+    - {name: BF,  type: brightfield, content: cell}
+    - {name: CY5, type: fluorescent, content: expression}
+    - {name: GFP, type: fluorescent, content: expression}
+metadata:
+  # Example file path: */chipML-day0-cohort40mbar/BF_ST_000_APT_000_20181121141241.tif
+  fields:
+    datetime:
+      regex: '[0-9]{14}'
+      format: '%Y%m%d%H%M%S'
+    day: '[0-9]{1,2}'
+    cohort: '40mbar'
+    chip: 'ML'
+    channel: 'BF|CY5|GFP'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+  path_format: '.*/chip{chip}-day{day}-cohort{cohort}/{channel}_ST_{street}_APT_{apartment}_{datetime}.tif'
+groupings:
+  experimental_conditions: [cohort]
+

@@ -5,19 +5,20 @@ import logging
 import tempfile
 import pandas as pd
 import numpy as np
-import hashlib
 import re
 from skimage import io as sk_io
+from skimage import exposure
 from collections import OrderedDict
 from celldom import io as celldom_io
 from celldom.core.datastore import HDF5Datastore
+from celldom.core.acquisition import Acquisition
 from celldom.config import cell_config, marker_config
-from celldom.dataset import marker_dataset
 from celldom.extract import NO_IMAGES, ALL_IMAGES, APT_IMAGES, apartment_extraction
-from celldom.utils import assert_rgb
+from celldom.utils import assert_rgb, rgb2gray
 from celldom.config.utils import get_apartment_image_shape
 from celldom.warnings import disable_skimage_warnings
 from cvutils.encoding import base64_encode_image
+
 
 # Disable known skimage warnings relating to this module and its usage
 disable_skimage_warnings()
@@ -79,43 +80,6 @@ def get_readonly_images(data_dir, data_file='images.h5'):
     return HDF5Datastore(data_dir, 'r', data_file)
 
 
-class Acquisition(object):
-
-    def __init__(self, config, path, properties=None):
-        self.config = config
-        self.path = path
-        # As an instance attribute, this may be useful for bypassing property inference
-        # in the future (but for now it does nothing)
-        self._properties = properties
-
-    def load_image(self, dataset_class=marker_dataset.MarkerDataset):
-        """Load the image associated with this acquisition while accounting for preprocessing"""
-        dataset = dataset_class(
-            reflect_images=self.config.acquisition_reflection,
-            scale_factor=self.config.acquisition_scale_factor
-        )
-        dataset.initialize([self.path])
-        dataset.prepare()
-        return dataset.load_image(0)
-
-    def infer_properties(self, exp_config):
-        if self._properties is not None:
-            raise ValueError('Cannot infer properties for acquisition if already explicitly defined')
-        props = exp_config.parse_path(self.path)
-        if 'id' in props:
-            raise ValueError(
-                'Properties inferred from paths cannot include an "id" attribute (properties = {})'
-                .format(props)
-            )
-        props['id'] = self._generate_id(props)
-        return props
-
-    def _generate_id(self, props):
-        keys = sorted(list(props.keys()))
-        key = ':'.join([str(props[k]) for k in keys])
-        return hashlib.md5(key.encode('utf-8')).hexdigest()
-
-
 SUPPORTED_IMAGE_FIELDS = {
     'apt_image': {'key_fields': ['acq_id', 'apt_id']},
     # 'cell_image': {'key_fields': ['acq_id', 'apt_id', 'cell_id']}
@@ -143,7 +107,7 @@ def get_image_key(image_type, image_field, properties):
 
 class Cytometer(object):
 
-    def __init__(self, config, data_dir, output_mode='w',
+    def __init__(self, config, data_dir=None, output_mode='w',
                  enable_focus_scores=True, enable_registration=True, cell_detection_threshold=None):
         self.config = config
         self.model_paths = _resolve_paths(config.get_cytometer_config())
@@ -189,12 +153,13 @@ class Cytometer(object):
         tf_conf = celldom.initialize_keras_session()
 
         # Initialize datastore to maintain results
-        self.datastore = HDF5Datastore(self.data_dir, self.output_mode, data_file='data.h5')
+        if self.data_dir is not None:
+            self.datastore = HDF5Datastore(self.data_dir, self.output_mode, data_file='data.h5')
 
-        comp_codec, comp_level = image_compression_codec(), image_compression_level()
-        logger.debug('Initializing image storage with codec %s (level = %s)', comp_codec, comp_level)
-        self.images = HDF5Datastore(self.data_dir, self.output_mode,
-                                    data_file='images.h5', complib=comp_codec, complevel=comp_level)
+            comp_codec, comp_level = image_compression_codec(), image_compression_level()
+            logger.debug('Initializing image storage with codec %s (level = %s)', comp_codec, comp_level)
+            self.images = HDF5Datastore(self.data_dir, self.output_mode,
+                                        data_file='images.h5', complib=comp_codec, complevel=comp_level)
 
         # Initialize predictive models
         self.digit_model = keras.models.load_model(self.model_paths['digit'])
@@ -285,28 +250,29 @@ class Cytometer(object):
         """
         self._check_initialized()
 
-        # Prepare single image dataset
-        # Note that while this may seem unnecessary for loading images, it used here because
-        # the "*Dataset" implementations often include image specific pre-processing that should
-        # be applied -- and in this case that potentially means reflection, uint8 conversion, and resizing)
+        # Fetch "landmark" image used to identify cell boundaries
         image = acquisition.load_image()
+
+        # Load expression image associated with above landmark image
+        expr_image, expr_channels = acquisition.load_expression()
 
         # At this point, the image should always be 8-bit RGB
         assert_rgb(image)
 
-        # Infer properties associated with the given acquisition based on file path
-        properties = acquisition.infer_properties(self.config)
+        # Get properties associated with the given acquisition based on file paths
+        properties = acquisition.get_primary_properties()
         properties['processed_at'] = pd.to_datetime('now')
 
         # Extract all relevant information
         partitions, norm_image, norm_centers, neighbors, rotation = apartment_extraction.extract(
             image, self.marker_model, self.chip_config,
+            expr_image=expr_image, expr_channels=expr_channels,
             digit_model=self.digit_model, cell_model=self.cell_model, focus_model=self.focus_model,
             enable_registration=self.enable_registration, dpf=dpf
         )
 
         acq_data = pd.DataFrame([dict(
-            raw_image_path=acquisition.path,
+            raw_image_path=acquisition.get_primary_path(),
             raw_image_shape_height=image.shape[0],
             raw_image_shape_width=image.shape[1],
             raw_norm_image=norm_image if dpf.raw_norm_image else None,
@@ -363,7 +329,14 @@ class Cytometer(object):
                 self._save(table, df)
         return self
 
+    def _check_save_available(self):
+        if self.data_dir is None:
+            raise ValueError(
+                'Cytometer must be initialized with optional "data_dir" '
+                'argument set in order to save results')
+
     def _save_images(self, key, df, image_field):
+        self._check_save_available()
         field_meta = SUPPORTED_IMAGE_FIELDS[image_field]
         cols = field_meta['key_fields'] + [image_field]
         for i, r in df[cols].iterrows():
@@ -373,6 +346,7 @@ class Cytometer(object):
             self.images.save_image(get_image_key(key, image_field, r), image)
 
     def _save(self, key, df):
+        self._check_save_available()
         d = df.copy()
 
         # Convert non-numeric fields to truncated strings (and remove any image fields)

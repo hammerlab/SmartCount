@@ -4,6 +4,10 @@ import celldom
 import os.path as osp
 from celldom.config import chip_config
 from celldom.config import analysis_config
+from celldom.constant import ACQ_TYPES, ACQ_TYPE_BF, ACQ_TYPES_MULTI_CHANNEL
+from celldom.constant import ACQ_CH_CONTENT_CELL, ACQ_CH_CONTENT_EXPR, ACQ_CH_TYPE_BF
+
+DEFAULT_CHANNELS_CONFIG = [dict(name='BF', type=ACQ_CH_TYPE_BF, content=ACQ_CH_CONTENT_CELL)]
 
 
 class ExperimentConfig(object):
@@ -77,6 +81,32 @@ class ExperimentConfig(object):
         return self.conf['acquisition']['reflection']
 
     @property
+    def acquisition_channels(self):
+        return self.conf['acquisition'].get('channels', DEFAULT_CHANNELS_CONFIG)
+
+    @property
+    def acquisition_type(self):
+        typ = self.conf['acquisition'].get('type', ACQ_TYPE_BF)
+        if typ not in ACQ_TYPES:
+            raise ValueError('Acquisition type "{}" is not valid (must be one of "{}")'.format(typ, ACQ_TYPES))
+        return typ
+
+    def _get_acquisition_channel_names(self, contents=None):
+        return [c['name'] for c in self.acquisition_channels if contents is None or c['content'] in contents]
+
+    @property
+    def acquisition_channel_names(self):
+        return self._get_acquisition_channel_names()
+
+    @property
+    def acquisition_primary_channel_name(self):
+        return self.acquisition_channel_names[0]
+
+    @property
+    def acquisition_expression_channel_names(self):
+        return self._get_acquisition_channel_names(contents=[ACQ_CH_CONTENT_EXPR])
+
+    @property
     def groupings(self):
         return self.conf.get('groupings', {})
 
@@ -145,11 +175,21 @@ class ExperimentConfig(object):
                 .format(self._path_format, path_field_names, conf_field_names)
             )
 
+        # Validate presence of necessary acquisition properties
         if 'acquisition' not in self.conf:
-            raise ValueError('Experiment configuration must contain "acqusition" properties')
+            raise ValueError('Experiment configuration must contain "acquisition" properties')
         for p in ['magnification', 'reflection']:
             if p not in self.conf['acquisition']:
                 raise ValueError('Experiment configuration must contain "acquisition.{}" property'.format(p))
+
+        # Run validations specific to multi-channel experiments
+        if self.acquisition_type in ACQ_TYPES_MULTI_CHANNEL:
+            # Ensure that the "channel" property is in the extracted metadata
+            if 'channel' not in conf_field_names:
+                raise ValueError(
+                    'Required metadata field "channel" not found (necessary with acquisition type "{}")'
+                    .format(self.acquisition_type)
+                )
 
     def parse_path(self, path):
 
@@ -176,6 +216,10 @@ class ExperimentConfig(object):
 
         # Convert parsed date to true date
         m['datetime'] = pd.to_datetime(m['datetime'], format=self._datetime_conf['format'])
+
+        # Add default channel name if channels not set in path
+        if 'channel' not in m:
+            m['channel'] = DEFAULT_CHANNELS_CONFIG[0]['name']
 
         return m
 

@@ -1,0 +1,31 @@
+name: exp-20181121-ML-FL-Sample
+chip: {name: chip-ML01}
+cytometer: {name: cytometer-05}
+analysis: {name: default}
+acquisition:
+  magnification: 10
+  reflection: true
+  type: 'bf-object+fl-expression' # ['bf-object', 'bf-object+fl-expression', 'fl-object+fl-expression']
+  channels:
+    - {name: BF,  type: brightfield, content: cell}
+    - {name: CY5, type: fluorescent, content: expression}
+    - {name: GFP, type: fluorescent, content: expression}
+metadata:
+  # Example file path: MultiColorDataset/20181121_MOLMGreenRed_Experiments/20181121-Mladder150-MOLM-Day0-Chip1-40mbar-Greenplusred_1000mbarsqueeze/GFP_ST_000_APT_000_20181121141604.tif
+  fields:
+    datetime:
+      regex: '[0-9]{14}'
+      format: '%Y%m%d%H%M%S'
+    day: '[0-9]{1,2}'
+    cohort: '1000mbarsqueeze|presqueeze'
+    channel: 'BF|CY5|GFP'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+  path_format: '.*/20181121-Mladder150-MOLM-Day{day}-Chip1-40mbar-Greenplusred_{cohort}/{channel}_ST_{street}_APT_{apartment}_{datetime}.tif'
+groupings:
+  # This list should include all fields necessary to identify a specific array.  For example, if an experiment
+  # includes the properties "lane" and "concentration" where "lane" corresponds to one of the arrays on a chip
+  # with 3 such arrays and concentration to the amount of some drug administered to all apartments in that chip,
+  # then this list should be set as [lane, concentration] -- all analysis will then be grouped by these values.
+  experimental_conditions: [cohort]
+

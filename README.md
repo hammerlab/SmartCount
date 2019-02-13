@@ -38,7 +38,8 @@ export CELLDOM_DATA_DIR=/data/disk2/celldom
 export CELLDOM_REPO_DIR=$HOME/repos/celldom
 
 # Run the container, which will show a link to visit in your browser
-nvidia-docker run --rm -ti -p 8888:8888 -p 6006:6006 \
+# Port relationships: 8888 -> Jupyterlab, 6006 -> Tensorboard, 8050-8060 -> Dash App
+nvidia-docker run --rm -ti -p 8888:8888 -p 6006:6006 -p 8050-8060:8050-8060 \
 -v $CELLDOM_DATA_DIR:/lab/data/celldom \
 -v $CELLDOM_REPO_DIR:/lab/repos/celldom \
 celldom
@@ -67,3 +68,20 @@ To sync local annotations to Google Storage:
 cd /data/disk2/celldom/dataset
 gsutil rsync -r training gs://celldom/dataset/training
 ```
+
+### Models
+
+Trained models stored as ```.h5``` files are available at [https://storage.googleapis.com/celldom/models](https://console.cloud.google.com/storage/browser/celldom/models/?project=hammerlab-chs&authuser=0).
+
+Currently, both cell and digit recognition models (saved as ```cell_model.h5``` and ```single_digit_model.h5``` 
+respectively) are agnostic to chip type which means that selecting a model to use
+for a new experiment is as simple as finding the most recently trained one.  In other words, the model with
+with the highest "rX.X" designation should be the most recently trained version.
+
+Marker models on the other hand can have a different target outcome that is chip-dependent.  This relationship
+between chips and the most recently trained marker models is as follows:
+
+- **G1**: r0.7/marker_model.h5
+- **G2**: r0.6/marker_model.h5
+- **G3**: r0.6/marker_model.h5
+- **ML**: r0.8/marker_model.h5 

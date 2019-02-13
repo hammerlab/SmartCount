@@ -3,7 +3,6 @@ import os
 import os.path as osp
 import numpy as np
 import pandas as pd
-from celldom.core import cytometry
 from celldom.core import modeling
 import logging
 
@@ -14,7 +13,7 @@ DATE_GROUP_FIELDS = ['elapsed_hours', 'elapsed_hours_group', 'acq_datetime_group
 GROWTH_RATE_OBJ_FIELDS = ['cell_counts', 'hours', 'dates', 'occupancies', 'confluence', 'acq_ids']
 
 
-def get_experiment_date_groups(dates, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SECONDS):
+def get_date_groups(dates, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SECONDS):
     # Make sure dates are sorted
     if not dates.is_monotonic_increasing:
         dates = dates.sort_values()
@@ -26,7 +25,7 @@ def get_experiment_date_groups(dates, min_gap_seconds=DEFAULT_DATE_GROUP_GAP_SEC
     # Create a new group index each time the difference between steps exceeds the given threshold (in seconds)
     groups = (dates.diff().dt.total_seconds() >= min_gap_seconds).cumsum()
 
-    # Get the minimum date for each group and then get a vector of len(dates) containaing the group date
+    # Get the minimum date for each group and then get a vector of len(dates) containing the group date
     # for each original date
     groups = groups.map(dates.groupby(groups).min())
 
@@ -48,7 +47,7 @@ def add_experiment_date_groups(df, exp_cond_fields, min_gap_seconds=DEFAULT_DATE
     res = []
     for _, g in df.groupby(exp_cond_fields):
         dg = g.copy()
-        date_map = get_experiment_date_groups(dg['acq_datetime'], min_gap_seconds)
+        date_map = get_date_groups(dg['acq_datetime'], min_gap_seconds)
         dg['acq_datetime_group'] = dg['acq_datetime'].map(date_map)
         dg['elapsed_hours_group'] = dg['acq_datetime_group'].map(
             dg.groupby('acq_datetime_group')['elapsed_hours'].min()).astype(int)

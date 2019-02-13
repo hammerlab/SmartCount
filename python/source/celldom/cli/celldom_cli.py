@@ -9,6 +9,7 @@ import glob
 import signal
 import copy
 import faulthandler
+from celldom import annotation
 from celldom.execute import processing, query
 from celldom.config import experiment_config
 from celldom.extract import NO_IMAGES, DataPersistenceFlags
@@ -46,6 +47,15 @@ def _exec_nb(nb_name, data_dir, params, output_path=None, output_filename=None):
     return output_path
 
 
+def _resolve_files(patterns):
+    files = []
+    if isinstance(patterns, str):
+        patterns = [patterns]
+    for pattern in patterns:
+        files.extend(glob.glob(pattern))
+    return sorted(list(set(files)))
+
+
 def _persistence_flags_from_names(names):
     flags = dict(NO_IMAGES._asdict())
     if names is None:
@@ -64,7 +74,7 @@ class Celldom(object):
 
     def run_processor(
             self, experiment_config_path, data_file_patterns, output_dir,
-            sample_rate=None, sample_count=None, max_failures=10, images_to_save=DEFAULT_IMAGES_TO_SAVE,
+            sample_count=None, max_failures=10, images_to_save=DEFAULT_IMAGES_TO_SAVE,
             output_mode='w', enable_focus_scores=False, enable_registration=True, cell_detection_threshold=None):
         """Run cell counting/cytometry for a given experiment configuration and set of raw data files
 
@@ -75,7 +85,6 @@ class Celldom(object):
                 - "/lab/data/dataset/dataset03/*/*.tif"
                 - ["/lab/data/dataset/dataset03/*Chip1/*.tif","/lab/data/dataset/dataset03/*Chip3/*.tif"]
             output_dir: Directory in which results will be stored
-            sample_rate: Float in (0, 1] indicating a fractional sampling rate of raw files to use
             sample_count: Fixed number of raw files to limit processing to
             max_failures: Maximum number of allowable image processing failures before entire command fails (default
                 is 10)
@@ -95,15 +104,11 @@ class Celldom(object):
                 0 and 1 and if not set, a default in celldom.config.cell_config.CellInferenceConfig will be used instead
         """
         # Get all matching files, deduplicate and sort
-        files = []
-        if isinstance(data_file_patterns, str):
-            data_file_patterns = [data_file_patterns]
-        for pattern in data_file_patterns:
-            files.extend(glob.glob(pattern))
-        files = sorted(list(set(files)))
+        files = _resolve_files(data_file_patterns)
 
         if len(files) == 0:
             raise ValueError('No data files found to process for patterns "{}"'.format(data_file_patterns))
+        logger.info('Found %s raw data files to process', len(files))
 
         # Resolve flags for images to save
         if images_to_save is not None:
@@ -112,22 +117,8 @@ class Celldom(object):
                     raise ValueError('Image type "{}" is not valid (must be one of {})'.format(name, IMAGE_NAMES))
         dpf = _persistence_flags_from_names(images_to_save)
 
-        logger.info('Found %s raw data files to process', len(files))
-        if sample_count is not None:
-            if sample_count < 1:
-                raise ValueError('Sample count must be >= 1 (not {})'.format(sample_count))
-            logger.info('Randomly selecting (at most) %s files to process', sample_count)
-            n = min(len(files), sample_count)
-            files = pd.Series(files).sample(n=n, random_state=celldom.seed)
-        elif sample_rate is not None:
-            if sample_rate <= 0 or sample_rate > 1:
-                raise ValueError('Sample rate must in (0, 1] (not {})'.format(sample_rate))
-            logger.info('Sampling raw files using given rate %s', sample_rate)
-            files = pd.Series(files).sample(frac=sample_rate, random_state=celldom.seed)
-        logger.info('Number of data files chosen to process: %s', len(files))
-
         logger.info('Loading experiment configuration from path: %s', experiment_config_path)
-        exp_config = experiment_config.ExperimentConfig(celldom.read_config(experiment_config_path))
+        exp_config = experiment_config.ExperimentConfig(experiment_config_path)
 
         if not osp.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
@@ -135,7 +126,9 @@ class Celldom(object):
         logger.info('Running data processor (output dir = %s) ...', output_dir)
         processing.run_cytometer(
             exp_config, output_dir, files,
-            max_failures=max_failures, dpf=dpf,
+            sample_count=sample_count,
+            max_failures=max_failures,
+            dpf=dpf,
             # Cytometer arguments
             output_mode=output_mode,
             enable_focus_scores=enable_focus_scores,
@@ -143,6 +136,40 @@ class Celldom(object):
             cell_detection_threshold=cell_detection_threshold
         )
         logger.info('Processing complete')
+
+    def run_annotator(
+            self, experiment_config_path, data_file_patterns, output_dir,
+            copy_original_images=False, cell_detection_threshold=None):
+        """Run cell detection on images and save results as RectLabel annotations
+
+        Args:
+            experiment_config_path: Path to experiment configuration
+                (e.g. /lab/repos/celldom/config/experiment/experiment_example_01.yaml)
+            data_file_patterns: Input image path glob patterns as either a single string or list of strings; Examples:
+                - "/lab/data/dataset/dataset03/*/*.tif"
+                - ["/lab/data/dataset/dataset03/*Chip1/*.tif","/lab/data/dataset/dataset03/*Chip3/*.tif"]
+            output_dir: Directory in which results will be stored
+            copy_original_images: Determines whether or not the input images (matching `data_file_patterns`) will
+                be copied into the output directory along with the annotation XML files (default False)
+            cell_detection_threshold: Confidence threshold for cell detections; this should be a number between
+                0 and 1 and if not set, a default in celldom.config.cell_config.CellInferenceConfig will be used instead
+        """
+        # Get all matching files, deduplicate and sort
+        files = _resolve_files(data_file_patterns)
+        if len(files) == 0:
+            raise ValueError('No data files found to process for patterns "{}"'.format(data_file_patterns))
+        logger.info('Found %s raw data files to process', len(files))
+
+        logger.info('Beginning cell detection and XML doc generation for %s files', len(files))
+        exp_config = experiment_config.ExperimentConfig(experiment_config_path)
+        docs = annotation.generate(files, exp_config, cell_detection_threshold=cell_detection_threshold)
+
+        logger.info(
+            'Writing XML annotations to path "%s" (%s original images copied)',
+            output_dir, 'with' if copy_original_images else 'without'
+        )
+        annotation.export(docs, output_dir, copy=copy_original_images)
+        logger.info('Annotation complete (all results in %s)', output_dir)
 
     def run_overview_app(self, experiment_config_path, output_dir, debug=False):
         """Run the experiment output overview application

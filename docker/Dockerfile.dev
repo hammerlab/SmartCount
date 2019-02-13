@@ -9,6 +9,7 @@ ARG CVUTILS_REPO_DIR=$REPO_DIR/cvutils
 RUN mkdir -p $LAB_DIR $REPO_DIR $DATA_DIR
 
 RUN apt-get update && apt-get install -y --no-install-recommends git vim
+RUN pip install --upgrade pip
 
 # Install these specific package versions to avoid their annoying breaking changes
 RUN pip install keras==2.1.6
@@ -37,19 +38,16 @@ RUN mkdir -p $(python -m site --user-site) && \
 
 # Install Dash and per their instructions, reference specific verions
 # See: https://dash.plot.ly/getting-started
-RUN pip install dash==0.21.1  \
-    dash-renderer==0.13.0 \
-    dash-html-components==0.11.0 \
-    dash-core-components==0.23.0 \
-    dash-table-experiments==0.6.0 \
+RUN pip install dash==0.36.0  \
+    dash-html-components==0.13.5 \
+    dash-core-components==0.43.0 \
+    dash-table==3.1.11 \
     plotly
 
 ##################
-# Dev Dependencies
-# All of the following are unnecessary in the production container
+# Dev-Specific
 RUN apt-get update && apt-get install -y nodejs npm
 RUN pip install wandb
-# /Dev Dependencies
 ###################
 
 # Set useful development environment variables (override on run if necessary)

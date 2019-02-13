@@ -15,10 +15,15 @@ def _default_components_data(chip_config):
     return res
 
 
-def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True):
+def extract(img, cell_model, chip_config, expr=None, expr_channels=None, dpf=NO_IMAGES, in_components_only=True):
 
     # Validate image input
     assert_rgb(img)
+
+    if expr is not None:
+        assert img.shape[:2] == expr.shape[:2], \
+            'Cell image shape ({}) should equal expression image shape ({}) in first two dimensions' \
+            .format(img.shape, expr.shape)
 
     # Get MRCNN detections -- Notes from docs on results:
     # Returns a list of dicts, one dict per image. The dict contains:
@@ -69,12 +74,14 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
 
         props = props[0]
 
-        # Centroid is (y, x) tuple
+        # Centroid is (y, x) tuple (i.e. rows, cols)
         centroid = props.centroid
 
-        cells.append(dict(
+        # Initialize cell property dictionary
+        cell = dict(
             cell_id=i,
             cell_image=props.intensity_image if dpf.cell_image else None,
+            coords=props.coords if dpf.cell_coords else None,
             # bbox format is min_row, min_col, max_row, max_col
             # - see http://scikit-image.org/docs/dev/api/skimage.measure.html#skimage.measure.regionprops
             # - use bbox instead of roi since they are not entirely identical
@@ -88,7 +95,13 @@ def extract(img, cell_model, chip_config, dpf=NO_IMAGES, in_components_only=True
             solidity=props.solidity,
             centroid_y=centroid[0],
             centroid_x=centroid[1]
-        ))
+        )
+
+        # Add cell expression levels, if applicable
+        if expr_channels is not None:
+            for ic, c in enumerate(expr_channels):
+                cell['expr_' + c] = expr[props.coords[:, 0], props.coords[:, 1], ic].mean()
+        cells.append(cell)
 
     # Return defaults if no valid cells were found
     if len(cells) == 0:

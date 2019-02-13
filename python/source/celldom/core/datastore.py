@@ -37,7 +37,17 @@ class HDF5Datastore(Datastore):
         self.store.put(key + '/data', pd.Series(image.ravel()), format='fixed')
 
     def load_image(self, key):
-        """Load image array for the given key, or return nothing if key is not present"""
+        """Load image array for the given key, or return nothing if key is not present
+
+        Example for loading apartment images:
+
+        ```
+        df_apt = exp.get_data_store().get('apartment')
+        r = df_apt.iloc[0]
+        key = cytometry.get_image_key('apartment', 'apt_image', r)
+        plt.imshow(store.load_image(key))
+        ```
+        """
         try:
             shape = tuple(self.store.get(key + '/shape'))
             image = self.store.get(key + '/data')

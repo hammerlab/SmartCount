@@ -9,6 +9,7 @@ ARG CVUTILS_REPO_DIR=$REPO_DIR/cvutils
 RUN mkdir -p $LAB_DIR $REPO_DIR $DATA_DIR
 
 RUN apt-get update && apt-get install -y --no-install-recommends git vim
+RUN pip install --upgrade pip
 
 # Install these specific package versions to avoid their annoying breaking changes
 RUN pip install keras==2.1.6
@@ -29,9 +30,6 @@ RUN pip install "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools
 RUN pip install Pillow keras>=2.0.8 h5py imgaug
 RUN cd $REPO_DIR/Mask_RCNN && pip install --no-deps .
 
-# CVUtils installation
-RUN cd $REPO_DIR && git clone https://github.com/hammerlab/cvutils.git
-
 # Add any source directories for development to python search path
 RUN mkdir -p $(python -m site --user-site) && \
     echo "$CELLDOM_REPO_DIR/python/source" > $(python -m site --user-site)/local.pth && \
@@ -40,12 +38,16 @@ RUN mkdir -p $(python -m site --user-site) && \
 
 # Install Dash and per their instructions, reference specific verions
 # See: https://dash.plot.ly/getting-started
-RUN pip install dash==0.21.1  \
-    dash-renderer==0.13.0 \
-    dash-html-components==0.11.0 \
-    dash-core-components==0.23.0 \
-    dash-table-experiments==0.6.0 \
+RUN pip install dash==0.36.0  \
+    dash-html-components==0.13.5 \
+    dash-core-components==0.43.0 \
+    dash-table==3.1.11 \
     plotly
+
+##################
+# Prd-Specific
+RUN cd $REPO_DIR && git clone https://github.com/hammerlab/cvutils.git
+###################
 
 # Set useful development environment variables (override on run if necessary)
 ENV CELLDOM_REPO_DIR $CELLDOM_REPO_DIR

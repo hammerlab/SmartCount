@@ -1,16 +1,17 @@
-import fire
-import dash
-from dash.dependencies import Input, Output, State
-import dash_core_components as dcc
-import dash_html_components as html
-import dash_table_experiments as dt
 import json
-import pandas as pd
-import numpy as np
 import os
 import plotly
 import logging
 import glob
+import fire
+import dash
+import pandas as pd
+import numpy as np
+import os.path as osp
+from dash.dependencies import Input, Output, State
+import dash_core_components as dcc
+import dash_html_components as html
+import dash_table_experiments as dt
 from celldom.execute.analysis import add_experiment_date_groups, GROWTH_RATE_OBJ_FIELDS
 from celldom_app.overview import data
 from celldom_app.overview import config
@@ -166,36 +167,61 @@ def get_page_apartments():
                         html.Div(
                             dcc.Dropdown(
                                 id='apartment-dropdown',
-                                placeholder='Choose apartment (must be selected in table first)'
+                                placeholder='Apartment (must be selected in table first)'
                             ),
-                            style={'display': 'inline-block', 'width': '60%'}
+                            style={'display': 'inline-block', 'width': '50%'}
                         ),
                         html.Div(
-                            html.Button(
-                                'Export',
-                                id='export-apartment-images',
-                                style={'width': '100%', 'height': '35px', 'line-height': '18px'}
+                            dcc.Textarea(
+                                placeholder='Filter ("hr in [0,24] and hr != 72")',
+                                style={'width': '100%', 'margin': '0px', 'min-height': '35px', 'height': '35px'},
+                                id='apartment-time-filter'
                             ),
-                            style={
-                                'display': 'inline-block', 'width': '20%',
-                                'vertical-align': 'top', 'padding-top': '1px'
-                            }
+                            style={'display': 'inline-block', 'width': '38%'}
                         ),
                         html.Div(
                             dcc.Checklist(
-                                options=[{'label': 'Show Markers', 'value': 'enabled'}],
+                                options=[{'label': 'Centroids', 'value': 'enabled'}],
                                 values=['enabled'],
                                 id='enable-cell-marker'
                             ),
                             style={
-                                'display': 'inline-block', 'width': '20%',
+                                'display': 'inline-block', 'width': '12%',
                                 'vertical-align': 'top', 'padding-top': '4px'
                             }
                         ),
                         html.Div(
                             id='apartment-animation',
                             style={'overflow-x': 'scroll', 'white-space': 'nowrap'}
-                        )
+                        ),
+                        html.Div([
+                            html.Div(
+                                dcc.Dropdown(
+                                    id='export-apartment-type',
+                                    options=[
+                                        {'label': 'TIF', 'value': 'tif'},
+                                        {'label': 'TIF (+centroids)', 'value': 'tif_markers'},
+                                        {'label': 'PNG', 'value': 'png'},
+                                        {'label': 'PNG (+centroids)', 'value': 'png_markers'},
+                                        {'label': 'RectLabel Annotations', 'value': 'rectlabel_annotations'}
+                                    ],
+                                    placeholder='Export Type',
+                                    clearable=False
+                                ),
+                                style={'display': 'inline-block', 'width': '50%', 'margin-top': '1px'}
+                            ),
+                            html.Div(
+                                html.Button(
+                                    'Export',
+                                    id='export-apartment-images',
+                                    style={'width': '100%', 'height': '35px', 'line-height': '18px'}
+                                ),
+                                style={
+                                    'display': 'inline-block', 'width': '50%',
+                                    'vertical-align': 'top', 'padding-top': '1px'
+                                }
+                            )
+                        ])
                     ],
                     className='five columns',
                     style={'margin-top': '0'}
@@ -532,18 +558,34 @@ def get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_
     return df.loc[selected_apartment]
 
 
+def get_apartment_time_filter_predicate(filter):
+    if filter is None or not filter.strip():
+        return lambda *args: True
+
+    def predicate(hr):
+        return eval(filter, {'hr': hr})
+    return predicate
+
+
 @app.callback(
     Output('apartment-animation', 'children'),
     [Input('apartment-dropdown', 'value'), Input('enable-cell-marker', 'values')],
-    [State('table-apartments-data', 'selected_row_indices'), State('table-apartments-data', 'rows')]
+    [
+        State('table-apartments-data', 'selected_row_indices'),
+        State('table-apartments-data', 'rows'),
+        State('apartment-time-filter', 'value')
+    ]
 )
-def update_apartment_animations(selected_apartment, show_cell_marker, selected_row_indices, rows):
+def update_apartment_animations(selected_apartment, show_cell_marker, selected_row_indices, rows, time_filter):
     r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows)
     if r is None:
         return None
 
+    p = get_apartment_time_filter_predicate(time_filter)
     children = []
     for i in range(r['n']):
+        if not p(r['hours'][i]):
+            continue
         title = 'H{} D{} C{}'.format(r['hours'][i], r['dates'][i], r['cell_counts'][i])
         children.append(html.Div([
                 html.Div(title, style={'text-align': 'center'}),
@@ -562,21 +604,48 @@ def update_apartment_animations(selected_apartment, show_cell_marker, selected_r
     [Input('export-apartment-images', 'n_clicks')],
     [
         State('apartment-dropdown', 'value'),
-        State('enable-cell-marker', 'values'),
         State('table-apartments-data', 'selected_row_indices'),
-        State('table-apartments-data', 'rows')
+        State('table-apartments-data', 'rows'),
+        State('apartment-time-filter', 'value'),
+        State('export-apartment-type', 'value'),
     ]
 )
-def export_apartment_animations(_, selected_apartment, show_cell_marker, selected_row_indices, rows):
+def export_apartment_animations(_, selected_apartment, selected_row_indices, rows, time_filter, export_type):
+    if export_type is None or not export_type.strip():
+        return None
+    show_cell_marker = export_type.split('_')[-1] == 'markers'
     r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows)
     if r is None:
         return None
-    titles = [
-        'H{} D{} C{}'.format(r['hours'][i], r['dates'][i], r['cell_counts'][i])
-        for i in range(r['n'])
-    ]
-    path = lib.export_apartment_images(selected_apartment, r['images'].tolist(), titles)
-    logger.info('Saved apartment (%s) images to path %s', selected_apartment, path)
+
+    p = get_apartment_time_filter_predicate(time_filter)
+    # Create more informative, easy-to-read titles if they are to be used in stacks
+    if export_type in ['tif', 'tif_markers']:
+        titles = [
+            'H{} D{} C{}'.format(r['hours'][i], r['dates'][i], r['cell_counts'][i])
+            for i in range(r['n']) if p(r['hours'][i])
+        ]
+    # Otherwise, create more sortable path names as titles
+    else:
+        titles = [
+            'H{:03d}:{}'.format(r['hours'][i], r['dates'][i].strftime('%Y%m%d:%H%M%S'))
+            for i in range(r['n']) if p(r['hours'][i])
+        ]
+
+    # Export images directly if not also adding annotations
+    if export_type in ['tif', 'tif_markers', 'png', 'png_markers']:
+        typ = export_type.split('_')[0]
+        export_dir, _ = lib.export_apartment_images(
+            selected_apartment, r['images'].tolist(), titles,
+            type=typ, relpath=osp.join('export', 'apartment', typ))
+    # Otherwise, export as png first before adding annotation files
+    elif export_type in ['rectlabel_annotations']:
+        export_dir, _ = lib.export_apartment_annots(
+            cfg.exp_config, selected_apartment, r['images'].tolist(), titles,
+            relpath=osp.join('export', 'apartment', 'annotated'))
+    else:
+        raise ValueError('Export type "{}" not yet supported'.format(export_type))
+    logger.info('Saved exported apartment images for apartment "%s" to path %s', selected_apartment, export_dir)
     
 
 @app.callback(
