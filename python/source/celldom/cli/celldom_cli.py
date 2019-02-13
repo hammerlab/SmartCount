@@ -9,6 +9,7 @@ import glob
 import signal
 import copy
 import faulthandler
+from celldom import annotation
 from celldom.execute import processing, query
 from celldom.config import experiment_config
 from celldom.extract import NO_IMAGES, DataPersistenceFlags
@@ -45,6 +46,7 @@ def _exec_nb(nb_name, data_dir, params, output_path=None, output_filename=None):
     pm.execute_notebook(input_path, output_path, parameters=params)
     return output_path
 
+
 def _resolve_files(patterns):
     files = []
     if isinstance(patterns, str):
@@ -52,6 +54,7 @@ def _resolve_files(patterns):
     for pattern in patterns:
         files.extend(glob.glob(pattern))
     return sorted(list(set(files)))
+
 
 def _persistence_flags_from_names(names):
     flags = dict(NO_IMAGES._asdict())
@@ -151,33 +154,21 @@ class Celldom(object):
             cell_detection_threshold: Confidence threshold for cell detections; this should be a number between
                 0 and 1 and if not set, a default in celldom.config.cell_config.CellInferenceConfig will be used instead
         """
-        from celldom import annotation
-
         # Get all matching files, deduplicate and sort
         files = _resolve_files(data_file_patterns)
         if len(files) == 0:
             raise ValueError('No data files found to process for patterns "{}"'.format(data_file_patterns))
         logger.info('Found %s raw data files to process', len(files))
 
-        # Run cell detector
-        logger.info('Beginning cell detection for %s files', len(files))
+        logger.info('Beginning cell detection and XML doc generation for %s files', len(files))
         exp_config = experiment_config.ExperimentConfig(experiment_config_path)
-        res = list(processing.run_cell_detection(exp_config, files, cell_detection_threshold=cell_detection_threshold))
-        logger.info('Cell detection complete')
-        if len(res) != len(files):
-            raise AssertionError('Expecting {} results but got {} from cell detector'.format(len(files), len(res)))
-
-        # Convert cell objects to RectLabel annotation files
-        logger.info('Converting detected cells into RectLabel xml')
-        docs = [annotation.get_image_rectlabel_xml(r[0], r[1], r[2]) for r in res]
-        if len(docs) != len(files):
-            raise AssertionError('Expecting {} results but got {} from xml generator'.format(len(files), len(docs)))
+        docs = annotation.generate(files, exp_config, cell_detection_threshold=cell_detection_threshold)
 
         logger.info(
             'Writing XML annotations to path "%s" (%s original images copied)',
             output_dir, 'with' if copy_original_images else 'without'
         )
-        annotation.save_image_rectlabel_annotations(output_dir, dict(zip(files, docs)), copy=copy_original_images)
+        annotation.export(docs, output_dir, copy=copy_original_images)
         logger.info('Annotation complete (all results in %s)', output_dir)
 
     def run_overview_app(self, experiment_config_path, output_dir, debug=False):

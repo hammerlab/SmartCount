@@ -2,7 +2,9 @@ import os
 import os.path as osp
 from shutil import copyfile
 from scipy import spatial
+from collections import OrderedDict
 from cvutils.rectlabel import io as rl_io
+from celldom.execute import processing
 
 
 def get_cell_rectlabel_xml_object(cell):
@@ -21,19 +23,19 @@ def get_image_rectlabel_xml(image_path, image_shape, cells):
     return rl_io.get_annotation_xml(image_path, image_shape, [get_cell_rectlabel_xml_object(c) for c in cells])
 
 
-def save_image_rectlabel_annotations(output_dir, image_docs, copy=False):
+def save_image_rectlabel_annotations(output_dir, docs, copy=False):
     """Write RectLabel annotation xml docs to directory
 
     This is useful for building training datasets bootstrapped from previously trained models
 
     Args:
         output_dir: Directory to contain image and annotation files
-        image_docs: Dict of RectLabel xml documents (as strings) with keys equal to path for original image
+        docs: Dict of RectLabel xml documents (as strings) with keys equal to path for original image
         copy: Copy original image files into `output_dir` along with annotation xml files (default False)
     """
     if not osp.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
-    for path, doc in image_docs.items():
+    for path, doc in docs.items():
         output_path = osp.join(output_dir, osp.basename(path))
 
         # Copy the original image if necessary
@@ -47,3 +49,20 @@ def save_image_rectlabel_annotations(output_dir, image_docs, copy=False):
         with open(annot_path, 'w') as fd:
             fd.write(doc)
 
+
+def generate(files, exp_config, type='rectlabel', **kwargs):
+    if type != 'rectlabel':
+        raise ValueError('Currently only RectLabel annotations are supported')
+    res = list(processing.run_cell_detection(exp_config, files, **kwargs))
+
+    # Convert cell objects to RectLabel annotation files (one XML doc per given image file)
+    docs = [get_image_rectlabel_xml(r[0], r[1], r[2]) for r in res]
+    if len(docs) != len(files):
+        raise AssertionError('Expecting {} results but got {} from xml generator'.format(len(files), len(docs)))
+    return OrderedDict(zip(files, docs))
+
+
+def export(docs, output_dir, type='rectlabel', copy=False):
+    if type != 'rectlabel':
+        raise ValueError('Currently only RectLabel annotations are supported')
+    save_image_rectlabel_annotations(output_dir, docs, copy=copy)

@@ -1,16 +1,17 @@
-import fire
-import dash
-from dash.dependencies import Input, Output, State
-import dash_core_components as dcc
-import dash_html_components as html
-import dash_table_experiments as dt
 import json
-import pandas as pd
-import numpy as np
 import os
 import plotly
 import logging
 import glob
+import fire
+import dash
+import pandas as pd
+import numpy as np
+import os.path as osp
+from dash.dependencies import Input, Output, State
+import dash_core_components as dcc
+import dash_html_components as html
+import dash_table_experiments as dt
 from celldom.execute.analysis import add_experiment_date_groups, GROWTH_RATE_OBJ_FIELDS
 from celldom_app.overview import data
 from celldom_app.overview import config
@@ -200,7 +201,9 @@ def get_page_apartments():
                                     options=[
                                         {'label': 'TIF', 'value': 'tif'},
                                         {'label': 'TIF (+centroids)', 'value': 'tif_markers'},
-                                        {'label': 'RectLabel Annotations', 'value': 'rl_annotations'}
+                                        {'label': 'PNG', 'value': 'png'},
+                                        {'label': 'PNG (+centroids)', 'value': 'png_markers'},
+                                        {'label': 'RectLabel Annotations', 'value': 'rectlabel_annotations'}
                                     ],
                                     placeholder='Export Type',
                                     clearable=False
@@ -608,24 +611,41 @@ def update_apartment_animations(selected_apartment, show_cell_marker, selected_r
     ]
 )
 def export_apartment_animations(_, selected_apartment, selected_row_indices, rows, time_filter, export_type):
-    export_type = export_type or 'tif'
-    show_cell_marker = export_type in ['tif_markers']
+    if export_type is None or not export_type.strip():
+        return None
+    show_cell_marker = export_type.split('_')[-1] == 'markers'
     r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows)
     if r is None:
         return None
 
     p = get_apartment_time_filter_predicate(time_filter)
+    # Create more informative, easy-to-read titles if they are to be used in stacks
     if export_type in ['tif', 'tif_markers']:
         titles = [
             'H{} D{} C{}'.format(r['hours'][i], r['dates'][i], r['cell_counts'][i])
             for i in range(r['n']) if p(r['hours'][i])
         ]
-        path = lib.export_apartment_images(selected_apartment, r['images'].tolist(), titles)
-        logger.info('Saved apartment (%s) images to path %s', selected_apartment, path)
-    elif export_type in ['rl_annotations']:
-        pass
+    # Otherwise, create more sortable path names as titles
+    else:
+        titles = [
+            'H{:03d}:{}'.format(r['hours'][i], r['dates'][i].strftime('%Y%m%d:%H%M%S'))
+            for i in range(r['n']) if p(r['hours'][i])
+        ]
+
+    # Export images directly if not also adding annotations
+    if export_type in ['tif', 'tif_markers', 'png', 'png_markers']:
+        typ = export_type.split('_')[0]
+        export_dir, _ = lib.export_apartment_images(
+            selected_apartment, r['images'].tolist(), titles,
+            type=typ, relpath=osp.join('export', 'apartment', typ))
+    # Otherwise, export as png first before adding annotation files
+    elif export_type in ['rectlabel_annotations']:
+        export_dir, _ = lib.export_apartment_annots(
+            cfg.exp_config, selected_apartment, r['images'].tolist(), titles,
+            relpath=osp.join('export', 'apartment', 'annotated'))
     else:
         raise ValueError('Export type "{}" not yet supported'.format(export_type))
+    logger.info('Saved exported apartment images for apartment "%s" to path %s', selected_apartment, export_dir)
     
 
 @app.callback(
