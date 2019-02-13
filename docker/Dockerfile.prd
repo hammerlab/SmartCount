@@ -15,7 +15,13 @@ RUN pip install --upgrade pip
 RUN pip install keras==2.1.6
 RUN pip install scikit-image==0.14.0
 
-RUN pip install jupyterlab matplotlib pandas plotnine Cython papermill tables retrying fire moviepy tifffile umap-learn
+RUN pip install jupyterlab matplotlib pandas plotnine Cython papermill tables retrying fire tifffile umap-learn
+
+# The below is necessary to download ffmeg locally and though imageio has since deprecated the
+# need for this, moviepy still has hardcode references to deprecated functions (so an older
+# version of imageio is used along with a call to run the one-time download)
+RUN pip install imageio==2.4.1 moviepy
+RUN python -c 'import imageio; imageio.plugins.ffmpeg.download()'
 
 # Opencv installation
 RUN apt-get install -y libsm6 libxext6 libfontconfig1 libxrender1

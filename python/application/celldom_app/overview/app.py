@@ -11,7 +11,7 @@ import os.path as osp
 from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
-import dash_table_experiments as dt
+import dash_table
 from celldom.execute.analysis import add_experiment_date_groups, GROWTH_RATE_OBJ_FIELDS
 from celldom_app.overview import data
 from celldom_app.overview import config
@@ -24,12 +24,43 @@ app = dash.Dash()
 # app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/dZVMbK.css'})
 app.css.append_css({'external_url': 'https://codepen.io/chriddyp/pen/bWLwgP.css'})
 cfg = config.get()
+cache = {}
 
 PAGE_NAMES = ['summary', 'apartments', 'arrays']
 GRAPH_GROWTH_DATA_MARGINS = {'l': 50, 'r': 20, 't': 40, 'b': 80}
+MIN_ROWS_VIRTUALIZATION = 500
 
-# app.scripts.config.serve_locally = True
-# app.css.config.serve_locally = True
+#app.scripts.config.serve_locally = True
+#app.css.config.serve_locally = True
+
+
+def get_datatable(id, df, cols=None, **kwargs):
+    cols = df.columns.tolist() if cols is None else cols
+    args = dict(
+        id=id,
+        columns=[{'id': c, 'name': c} for c in cols],
+        data=df.to_dict(orient='records'),
+        editable=False,
+        filtering=True,
+        sorting=True,
+        n_fixed_rows=2,
+        sorting_type="multi",
+        row_selectable="multi",
+        content_style="grow",
+        row_deletable=False,
+        selected_rows=[],
+        style_table={'maxHeight': '500px', 'overflowX': 'scroll', 'overflowY': 'scroll'},
+        style_cell={'minWidth': '100px'}
+    )
+
+    # Add virtualization for larger tables
+    if len(df) >= MIN_ROWS_VIRTUALIZATION:
+        args.update(dict(virtualization=True, pagination_mode=False))
+
+    # Add kwargs last to override defaults
+    args.update(kwargs)
+
+    return dash_table.DataTable(**args)
 
 
 def get_header_layout():
@@ -145,17 +176,7 @@ def get_page_apartments():
             ]
         ),
         html.Div([
-            dt.DataTable(
-                rows=df.to_dict('records'),
-                columns=fields,
-                editable=False,
-                row_selectable=True,
-                filterable=True,
-                sortable=True,
-                selected_row_indices=[],
-                max_rows_in_viewport=cfg.max_table_rows,
-                id='table-apartments-data'
-            )
+            get_datatable('table-apartments-data', df, fields)
         ]),
         html.Div([
                 html.Div(
@@ -273,17 +294,7 @@ def get_page_arrays():
         ]
         ),
         html.Div([
-            dt.DataTable(
-                rows=df.to_dict('records'),
-                columns=df.columns.tolist(),
-                editable=False,
-                row_selectable=True,
-                filterable=True,
-                sortable=True,
-                selected_row_indices=[],
-                max_rows_in_viewport=cfg.max_table_rows,
-                id='table-arrays-data'
-            )
+            get_datatable('table-arrays-data', df)
         ]),
         html.Div([
                 html.Div(
@@ -366,17 +377,7 @@ def get_page_summary():
             ])
         ]),
         html.Div([
-            dt.DataTable(
-                rows=df.to_dict('records'),
-                columns=df.columns.tolist(),
-                editable=False,
-                row_selectable=True,
-                filterable=True,
-                sortable=True,
-                selected_row_indices=[],
-                max_rows_in_viewport=cfg.max_table_rows,
-                id='table-summary-data'
-            )
+            get_datatable('table-summary-data', df)
         ]),
         html.Div([
                 html.Div(
@@ -479,52 +480,58 @@ for page_name in PAGE_NAMES:
         return style
 
 
-def add_table_info_callback(page_name):
-    @app.callback(
-        Output('table-info-' + page_name, 'children'),
-        [Input('table-' + page_name + '-data', 'rows')]
-    )
-    def update_table_info(rows):
-        if rows is None:
-            return None
-        return 'Number of rows: {}'.format(len(rows))
+# TODO: figure out how to do this w/o full dataset transfer
+# def add_table_info_callback(page_name):
+#     @app.callback(
+#         Output('table-info-' + page_name, 'children'),
+#         [Input('table-' + page_name + '-data', 'rows')]
+#     )
+#     def update_table_info(rows):
+#         if rows is None:
+#             return None
+#         return 'Number of rows: {}'.format(len(rows))
+#
+#
+# for page_name in PAGE_NAMES:
+#     add_table_info_callback(page_name)
 
 
-for page_name in PAGE_NAMES:
-    add_table_info_callback(page_name)
-
-
-def get_selected_growth_data(rows, selected_row_indices):
-    df = pd.DataFrame([rows[i] for i in selected_row_indices])
-    # Deserialize any json objects encoded in execute.view.get_apartment_summary_view
-    for c in GROWTH_RATE_OBJ_FIELDS:
-        df[c] = df[c].apply(lambda x: pd.read_json(x, typ='series').to_dict())
+def update_apartment_summary_data(code=None):
+    df = data.get_apartment_summary_data()
+    if code is not None and code.strip():
+        logger.info('Applying custom code to apartment summary data:\n%s', code)
+        local_vars = {'df': df}
+        exec(code, globals(), local_vars)
+        df = local_vars['df']
+    cache['apartment_summary_data'] = df
     return df
 
 
+def get_apartment_summary_data(selected_rows=None):
+    if 'apartment_summary_data' in cache:
+        df = cache['apartment_summary_data']
+    else:
+        df = update_apartment_summary_data()
+    return df.iloc[selected_rows] if selected_rows else df
+
+
 @app.callback(
-    Output('table-apartments-data', 'rows'),
+    Output('table-apartments-data', 'data'),
     [Input('code-apartments-apply', 'n_clicks')],
     [State('code-apartments', 'value')]
 )
 def update_apartment_table(_, code):
-    df = data.get_apartment_summary_data()
-    if code:
-        logger.info('Applying custom code to apartment data:\n%s', code)
-        local_vars = {'df': df}
-        exec(code, globals(), local_vars)
-        df = local_vars['df']
-    return df.to_dict(orient='records')
+    return update_apartment_summary_data(code).to_dict(orient='records')
 
 
 @app.callback(
     Output('apartment-dropdown', 'options'),
-    [Input('table-apartments-data', 'selected_row_indices'), Input('table-apartments-data', 'rows')]
+    [Input('table-apartments-data', 'selected_rows')]
 )
-def update_apartment_dropdown_options(selected_row_indices, rows):
-    if not selected_row_indices:
+def update_apartment_dropdown_options(selected_rows):
+    if not selected_rows:
         return []
-    df = get_selected_growth_data(rows, selected_row_indices)
+    df = get_apartment_summary_data(selected_rows)
     options = []
     for i, r in df.iterrows():
         key = data.get_apartment_key(r)
@@ -532,11 +539,11 @@ def update_apartment_dropdown_options(selected_row_indices, rows):
     return options
 
 
-def get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows):
-    if not selected_row_indices or not rows or not selected_apartment:
+def get_apartment_image_data(selected_apartment, show_cell_marker, selected_rows):
+    if not selected_rows or not selected_apartment:
         return None
     # Get growth data for all selected apartments (in table)
-    df = get_selected_growth_data(rows, selected_row_indices)
+    df = get_apartment_summary_data(selected_rows)
 
     # Get growth data for the selected (single) apartment
     mask = df.apply(data.get_apartment_key, axis=1) == selected_apartment
@@ -571,13 +578,12 @@ def get_apartment_time_filter_predicate(filter):
     Output('apartment-animation', 'children'),
     [Input('apartment-dropdown', 'value'), Input('enable-cell-marker', 'values')],
     [
-        State('table-apartments-data', 'selected_row_indices'),
-        State('table-apartments-data', 'rows'),
+        State('table-apartments-data', 'selected_rows'),
         State('apartment-time-filter', 'value')
     ]
 )
-def update_apartment_animations(selected_apartment, show_cell_marker, selected_row_indices, rows, time_filter):
-    r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows)
+def update_apartment_animations(selected_apartment, show_cell_marker, selected_rows, time_filter):
+    r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_rows)
     if r is None:
         return None
 
@@ -604,17 +610,16 @@ def update_apartment_animations(selected_apartment, show_cell_marker, selected_r
     [Input('export-apartment-images', 'n_clicks')],
     [
         State('apartment-dropdown', 'value'),
-        State('table-apartments-data', 'selected_row_indices'),
-        State('table-apartments-data', 'rows'),
+        State('table-apartments-data', 'selected_rows'),
         State('apartment-time-filter', 'value'),
         State('export-apartment-type', 'value'),
     ]
 )
-def export_apartment_animations(_, selected_apartment, selected_row_indices, rows, time_filter, export_type):
+def export_apartment_animations(_, selected_apartment, selected_rows, time_filter, export_type):
     if export_type is None or not export_type.strip():
         return None
     show_cell_marker = export_type.split('_')[-1] == 'markers'
-    r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_row_indices, rows)
+    r = get_apartment_image_data(selected_apartment, show_cell_marker, selected_rows)
     if r is None:
         return None
 
@@ -650,24 +655,32 @@ def export_apartment_animations(_, selected_apartment, selected_row_indices, row
 
 @app.callback(
     Output('graph-growth-data', 'figure'),
-    [Input('table-apartments-data', 'selected_row_indices'), Input('table-apartments-data', 'rows')]
+    [Input('table-apartments-data', 'selected_rows')]
 )
-def update_apartment_growth_graph(selected_row_indices, rows):
-    if not selected_row_indices or not rows:
+def update_apartment_growth_graph(selected_rows):
+    if not selected_rows:
         return {
             'data': [],
             'layout': {'title': 'Apartment Cell Counts', 'margin': GRAPH_GROWTH_DATA_MARGINS}
         }
+    df = get_apartment_summary_data(selected_rows)
 
-    df = get_selected_growth_data(rows, selected_row_indices)
+    # Deserialize any json objects encoded in execute.view.get_apartment_summary_view
+    # Note that this is VERY slow so make sure to only use it on subsets
+    # for c in GROWTH_RATE_OBJ_FIELDS:
+    #     df[c] = df[c].apply(lambda x: pd.read_json(x, typ='series').to_dict())
+
     fig_data = []
 
+    def get_ts(json_string):
+        return pd.read_json(json_string, typ='series').sort_index()
+
     for i, r in df.iterrows():
-        tsct = pd.Series(r['cell_counts']).sort_index()
-        tshr = pd.Series(r['hours']).sort_index()
-        tsdt = pd.Series(r['dates']).sort_index()
-        tso = pd.Series(r['occupancies']).sort_index()
-        tsconf = pd.Series(r['confluence']).sort_index()
+        tsct = get_ts(r['cell_counts'])
+        tshr = get_ts(r['hours'])
+        tsdt = get_ts(r['dates'])
+        tso = get_ts(r['occupancies'])
+        tsconf = get_ts(r['confluence'])
         fig_data.append({
             'x': tshr.values,
             'y': tsct.values,
@@ -693,25 +706,26 @@ def update_apartment_growth_graph(selected_row_indices, rows):
 
 
 @app.callback(
-    Output('table-apartments-data', 'selected_row_indices'),
+    Output('table-apartments-data', 'selected_rows'),
     [Input('graph-array-data', 'clickData')],
     [
         State('array-dropdown', 'value'),
-        State('table-apartments-data', 'selected_row_indices'),
-        State('table-apartments-data', 'rows')
+        State('table-apartments-data', 'selected_rows')
     ]
 )
-def update_apartments_table_selected_rows(click_data, array, selected_row_indices, rows):
+def update_apartments_table_selected_rows(click_data, array, selected_rows):
     # {'points': [{'z': 2, 'curveNumber': 0, 'y': 'st 08', 'x': 'apt 11'}]}
-    if not array or not rows or not click_data or 'points' not in click_data or not click_data['points']:
-        return selected_row_indices
+    if not array or not click_data or 'points' not in click_data or not click_data['points']:
+        return selected_rows
 
-    selected_row_indices = selected_row_indices or []
+    # Fetch the full apartment summary data frame (not currently selected frame)
+    df = get_apartment_summary_data()
+    selected_row_indices = selected_rows or []
     apt_num, st_num = click_data['points'][0]['x'], click_data['points'][0]['y']
     apt_num, st_num = apt_num.split(' ')[1], st_num.split(' ')[1]
     key = data.append_key(array, [apt_num, st_num])
 
-    keys = np.array([data.get_apartment_key(r) for r in rows])
+    keys = np.array([data.get_apartment_key(r) for _, r in df.iterrows()])
 
     # Get indices where keys are equal, avoiding argwhere since results are grouped by element
     indices = list(np.flatnonzero(keys == key))
@@ -727,8 +741,8 @@ def update_apartments_table_selected_rows(click_data, array, selected_row_indice
 @app.callback(
     Output('graph-summary-distributions', 'figure'),
     [
-        Input('table-summary-data', 'selected_row_indices'),
-        Input('table-summary-data', 'rows'),
+        Input('table-summary-data', 'selected_rows'),
+        Input('table-summary-data', 'data'),
         Input('summary-distribution-grouping', 'value'),
         Input('summary-distribution-plot-type', 'value')
     ]
@@ -809,7 +823,7 @@ def update_summary_distribution_graph(selected_row_indices, rows, fields, plot_t
 
 @app.callback(
     Output('array-dropdown', 'options'),
-    [Input('table-arrays-data', 'selected_row_indices'), Input('table-arrays-data', 'rows')]
+    [Input('table-arrays-data', 'selected_rows'), Input('table-arrays-data', 'data')]
 )
 def update_array_dropdown_options(selected_row_indices, rows):
     if not selected_row_indices or not rows:

@@ -11,23 +11,33 @@ RUN mkdir -p $LAB_DIR $REPO_DIR $DATA_DIR
 RUN apt-get update && apt-get install -y --no-install-recommends git vim
 RUN pip install --upgrade pip
 
-# Install these specific package versions to avoid their annoying breaking changes
-RUN pip install keras==2.1.6
-RUN pip install scikit-image==0.14.0
-
-RUN pip install jupyterlab matplotlib pandas plotnine Cython papermill tables retrying fire moviepy tifffile umap-learn
-
-# Opencv installation
+# Necessary dependencies for OpenCV
 RUN apt-get install -y libsm6 libxext6 libfontconfig1 libxrender1
-RUN pip install opencv-python
+
+RUN pip install \
+    keras==2.1.6 \
+    scikit-image==0.14.0 \
+    imageio==2.4.1 \
+    dash==0.36.0 \
+    dash-html-components==0.13.5 \
+    dash-core-components==0.43.0 \
+    dash-table==3.1.11 \
+    jupyterlab plotly plotnine \
+    Cython papermill opencv-python tables retrying fire tifffile umap-learn \
+    moviepy Pillow h5py imgaug
+
+# The below is necessary to download ffmeg locally and though imageio has since deprecated the
+# need for this, moviepy still has hardcode references to deprecated functions (so an older
+# version of imageio is used along with a call to run the one-time download)
+RUN python -c 'import imageio; imageio.plugins.ffmpeg.download()'
+
 
 # Matterport Mask RCNN project installation
 RUN cd $REPO_DIR && git clone https://github.com/matterport/Mask_RCNN.git
 # See: https://github.com/matterport/Mask_RCNN/issues/6
-RUN pip install "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
+RUN pip install --no-deps "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
 # Override requirements specified by RCNN lib to ignore tensorflow (which it references
 # as the CPU-only package, which makes no sense for anything other than maybe unit tests)
-RUN pip install Pillow keras>=2.0.8 h5py imgaug
 RUN cd $REPO_DIR/Mask_RCNN && pip install --no-deps .
 
 # Add any source directories for development to python search path
@@ -36,18 +46,11 @@ RUN mkdir -p $(python -m site --user-site) && \
     echo "$CELLDOM_REPO_DIR/python/application" >> $(python -m site --user-site)/local.pth && \
     echo "$CVUTILS_REPO_DIR/python" >> $(python -m site --user-site)/local.pth
 
-# Install Dash and per their instructions, reference specific verions
-# See: https://dash.plot.ly/getting-started
-RUN pip install dash==0.36.0  \
-    dash-html-components==0.13.5 \
-    dash-core-components==0.43.0 \
-    dash-table==3.1.11 \
-    plotly
-
 ##################
 # Dev-Specific
-RUN apt-get update && apt-get install -y nodejs npm
-RUN pip install wandb
+# TODO: figure out how to get nodejs install without python2 overriding default python
+# RUN apt-get update && apt-get install -y nodejs npm
+# RUN pip install wandb
 ###################
 
 # Set useful development environment variables (override on run if necessary)
