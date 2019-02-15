@@ -1,11 +1,11 @@
 ARG TF_IMAGE=tensorflow/tensorflow:1.7.0-gpu-py3
+FROM $TF_IMAGE
 ARG LAB_DIR=/lab
 ARG REPO_DIR=/lab/repos
 ARG DATA_DIR=/lab/data
 ARG CELLDOM_REPO_DIR=$REPO_DIR/celldom
 ARG CELLDOM_DATA_DIR=$DATA_DIR/celldom
 ARG CVUTILS_REPO_DIR=$REPO_DIR/cvutils
-FROM $TF_IMAGE
 
 RUN mkdir -p $LAB_DIR $REPO_DIR $DATA_DIR
 
