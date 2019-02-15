@@ -2,6 +2,11 @@ sudo: required
 language: python
 services:
   - docker
+addons:
+  apt:
+    packages:
+      # Update docker to be able to use working dir in exec commands
+      - docker-ce
 before_install:
   - cd docker
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
