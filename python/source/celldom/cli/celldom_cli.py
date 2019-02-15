@@ -182,14 +182,14 @@ class Celldom(object):
             debug: Flag indicating that Dash server should run in debug mode, which makes it easier
                 to test source code changes without restarting the app
         """
-        from celldom_app.overview import config as app_config
+        from celldom.app.overview import config as app_config
         app_config.initialize(experiment_config_path, output_dir)
 
-        from celldom_app.overview import data as app_data
+        from celldom.app.overview import data as app_data
         app_data.initialize()
 
-        from celldom_app.overview import app
-        app.run_server(debug=debug)
+        from celldom.app.overview import ui
+        ui.run_server(debug=debug)
 
     def run_array_analysis(self, experiment_config_path, output_dir,
                            na_growth_rate_fill_value=None,

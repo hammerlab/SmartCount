@@ -66,15 +66,15 @@ def run_cytometer(exp_config, output_dir, files, max_failures=MAX_PROC_FAILURES,
             except NoMarkerException:
                 n_fail += 1
                 logger.error(
-                    'No markers found in file %s (failure threshold = %s, current failure count = %s)',
-                    f, max_failures, n_fail
+                    'No markers found in acquisition (paths = "%s", failure threshold = %s, '
+                    'current failure count = %s)', acq.paths, max_failures, n_fail
                 )
             # Otherwise log whole trace
             except Exception:
                 n_fail += 1
                 logger.exception(
-                    'A failure occurred processing file %s (failure threshold = %s, current failure count = %s)',
-                    f, max_failures, n_fail
+                    'A failure occurred processing acquisition (paths = "%s", failure threshold = %s, '
+                    'current failure count = %s)', acq.paths, max_failures, n_fail
                 )
             if n_fail >= max_failures:
                 logger.error('Threshold for max number of failures exceeded; skipping any further processing')

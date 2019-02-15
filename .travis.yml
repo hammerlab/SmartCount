@@ -1,0 +1,43 @@
+sudo: required
+language: python
+env:
+  global:
+    # DOCKER_USERNAME
+    - secure: "M8qVAs3aDsz6Bd3bLUMRIm1mOGqcHtCmX3ZyG19/MIsqD4j81ilhEzqH0Wl6GRUYeI3ZfLUprIL2ad3yA+35RH6dgn6ZCFh6djA3+/v9M2g0TSI0mZ/FiVV6R/Wugdk9vjUe0kQqmqnSVkAIcymo85OG5zqAQdKTUHdPaScR70CyRZhtOlZqYbDW5h0uxBeMi54hOR0T8URZ9KtSHqTbHq5ttiVUx5EowDvcV40x6B+svSqpdLDvbY5HCQIrwk93GM8JIjy5nzmmBB1EWHeE/cFDP6DwwKFTmXLqF8T4/v5K6zbILUFWVBqB5XmSrmdTEiVtn8dgMv/YE6Kkb4IhUU1dE8NBh9xWZ88xDWUMkpcWOgzF0axWTen1Uaw+iwJzTFmLz3+UKYy8yUTuF3cQKBoOST5bVI57LlEFTUsmjjJNL2b5ccKT2kKZOPMrPg/ZTtST7w5FAaWoUQVrmNHqOXnX/rJudrf1tqGMErXu9E9CZkL2wG330e5O/tZ2T7EMRDTsouhsEARzKoMzHtxjD0b5s7HBKjhlLijBcRZ+4BhQpbRXmOwvuYYTie8DlwLQMmYk0fsgR2q81MylZs+G0pIhrg4yPwIkTMmHQiBKvJglrCiVQ/kcU4dqcFB8uSxtdMQ8pQdcwYMLnnjSMKf/9KZ2/3iczJpsoDu9gjCqOZ8="
+    # DOCKER_PASSWORD
+    - secure: "eoJ1Ukr4ZLEV+84O34NzmsiLWFV9iKMMbLSWKjC01MaQUMgcVeyKvOzMPTMnlmglghj1yenijxERFts0VHH/212MUmtUr2f7BCFloVRMcJkCK2GtOtcSvO02Q2Q3pwDSs8F5rzVnhCCmFQ+BD3idf7TfBCw4CS3AsIv+0eimTf+TGLb5zeITn5PkhlUxxhrbCDlYLfPbHHu0x4/Ku7N1QEqkZRoGQjsvp1/kCk6uSaXKzOCEZcZILPXOR8hV/F7HjVedD6q7gs+5Y9stiP8tF731xhYp3fupsmcdn5DgY9AYktGtbaJh+bO9HgFafulIDBUlaUkNNtWqee85GOSME/bDfoc7jD/1VLhrtPNA9iQKSj9hiF/aMBbFphNoaI84k2zKqm7D+96A9+hh/MFKRbpBlI/sCidGiiKoy17mBVHagKnIgqnmzWuyQEAcQy00jptNbeBHDNGatOKJvJWCycGZEvuMg0OF3WtCNui0qZWHC1und6MteEtA0HgIVPYocEcjdS+eCXkx8Y/Ymze4gOtpavGbnfmAHgpbHdcobGO5HaFkhcGmgI0ib7LUlhte+pRjSb8bcaNGXyVHKP8zkak29dGrirkHiftjlQAZbFO3L+cOl5xMsssO7gObeWorIMV6s0Ytfg2042SFYIQSKvWBdsYYO1zwd0BHdDWk+/E="
+services:
+  - docker
+addons:
+  apt:
+    packages:
+      # Update docker to be able to use working dir in exec commands
+      - docker-ce
+before_install:
+  - cd docker
+  - export REPO=eczech/celldom # Set docker hub repo name (TODO: get permissions for hammerlab dockerhub)
+  - export TAG="$REPO:$(if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo $TRAVIS_BRANCH ; fi)"
+  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
+  - docker build --build-arg TF_IMAGE=tensorflow/tensorflow:1.7.0-py3 --build-arg CELLDOM_REPO_BRANCH=$BRANCH -t $TAG -f Dockerfile.prd .
+  - docker run -d --rm --name celldom $TAG
+  - docker ps -a
+  #  CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                NAMES
+  #  0682f850c3de        celldom             "/bin/sh -c 'jupyter…"   27 seconds ago      Up 24 seconds       6006/tcp, 8888/tcp   celldom
+  - cd ..
+script:
+  - docker exec celldom pip install nose coveralls pylint
+  - docker exec -w /lab/repos/celldom/python/source celldom nosetests --exe -sv tests/ --with-coverage --cover-inclusive --cover-package=celldom
+  - docker exec -w /lab/repos/celldom/python/source celldom bash ./.lint.sh
+after_success:
+  - docker cp celldom:/lab/repos/celldom/python/source/.coverage .
+  - sed -i 's|/lab/repos/celldom/||g' .coverage
+  - coveralls
+before_deploy:
+  - echo "Docker user = $DOCKER_USERNAME"
+  - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+deploy:
+  provider: script
+  script: docker push $TAG
+  on:
+    all_branches: true
+    condition: $TRAVIS_BRANCH =~ ^(r[0-9]{1,3}[.][0-9]{1,3}|master)$
