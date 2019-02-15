@@ -33,10 +33,6 @@ if __name__ == '__main__':
             'keras==2.1.6',
             'scikit-image==0.14.0',
             'imageio==2.4.1',
-            'dash==0.36.0',
-            'dash-html-components==0.13.5',
-            'dash-core-components==0.43.0',
-            'dash-table==3.1.11',
             'jupyterlab',
             'plotly',
             'plotnine',
@@ -59,7 +55,13 @@ if __name__ == '__main__':
         extras_require={
             'tf': ['tensorflow>=1.7.0'],
             'tf_gpu': ['tensorflow-gpu>=1.7.0'],
-            'train': ['pycocotools', 'maskrcnn', 'imgaug']
+            'training': ['pycocotools', 'maskrcnn', 'imgaug'],
+            'app': [
+                'dash==0.36.0',
+                'dash-html-components==0.13.5',
+                'dash-core-components==0.43.0',
+                'dash-table==3.1.11',
+            ]
         },
         long_description=readme_markdown,
         long_description_content_type='text/markdown',
