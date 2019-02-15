@@ -27,7 +27,8 @@ after_success:
   - sed -i 's|/lab/repos/celldom/||g' .coverage
   - coveralls
 before_deploy:
-  - echo "$DOCKER_PASSWORD" | docker login --username "$DOCKER_USERNAME" --password-stdin
+  - echo "Docker user = $DOCKER_USERNAME"
+  - echo "$DOCKER_PASSWORD" | docker login --username eczech --password-stdin
 deploy:
   provider: script
   script: docker push $TAG
