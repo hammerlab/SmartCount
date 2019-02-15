@@ -15,13 +15,14 @@ before_install:
   - docker ps -a
   #  CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                NAMES
   #  0682f850c3de        celldom             "/bin/sh -c 'jupyter…"   27 seconds ago      Up 24 seconds       6006/tcp, 8888/tcp   celldom
+  - cd ..
 script:
   - docker exec celldom pip install nose coveralls pylint
   - docker exec -w /lab/repos/celldom/python/source celldom nosetests --exe -sv tests/ --with-coverage --cover-inclusive --cover-package=celldom
   - docker exec -w /lab/repos/celldom/python/source celldom bash ./.lint.sh
 after_success:
-  - cd ../python/source
-  - docker cp celldom:/lab/repos/celldom/python/source/.coverage .
+  - docker cp celldom:/lab/repos/celldom/python/source/.coverage ./.coverage-docker
+  - cat .coverage-docker | sed 's|/lab/repos/celldom/||g' > .coverage
   - coveralls
 before_deploy:
   - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
