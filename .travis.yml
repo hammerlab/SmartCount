@@ -9,9 +9,11 @@ addons:
       - docker-ce
 before_install:
   - cd docker
+  - export REPO=celldom
+  - export TAG="$REPO:$(if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo $TRAVIS_BRANCH ; fi)"
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-  - docker build --build-arg TF_IMAGE=tensorflow/tensorflow:1.7.0-py3 --build-arg CELLDOM_REPO_BRANCH=$BRANCH -t celldom -f Dockerfile.prd .
-  - docker run -d --rm --name celldom celldom
+  - docker build --build-arg TF_IMAGE=tensorflow/tensorflow:1.7.0-py3 --build-arg CELLDOM_REPO_BRANCH=$BRANCH -t $TAG -f Dockerfile.prd .
+  - docker run -d --rm --name celldom $TAG
   - docker ps -a
   #  CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                NAMES
   #  0682f850c3de        celldom             "/bin/sh -c 'jupyter…"   27 seconds ago      Up 24 seconds       6006/tcp, 8888/tcp   celldom
@@ -28,6 +30,7 @@ before_deploy:
   - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
 deploy:
   provider: script
-  script: docker push eczech/celldom
+  script: docker push eczech/$TAG
   on:
-    branch: master
+    all_branches: true
+    condition: $TRAVIS_BRANCH =~ ^(r[0-9]{1,3}[.][0-9]{1,3}|master)$
