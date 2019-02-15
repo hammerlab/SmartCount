@@ -67,11 +67,11 @@ def get_datatable(id, df, cols=None, **kwargs):
         sorting=True,
         is_focused=False,
         row_deletable=False,
-        # Disable filtering until it is lessy buggy
-        # filtering=True,
-        # n_fixed_rows=2,
-        filtering=False,
-        n_fixed_rows=1,
+        filtering=True,
+        n_fixed_rows=2,
+        # To disable filtering:
+        # filtering=False,
+        # n_fixed_rows=1,
 
         sorting_type="multi",
         row_selectable="multi",
