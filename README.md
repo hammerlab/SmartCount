@@ -27,26 +27,19 @@ installing nvidia-docker and all three worked fine for me on the first go at it.
 After that, there isn't much to setup other than building and running the docker container.  All that requires is
 to first clone this repository somewhere locally (say ~/repos), and then run:
 
-```
-cd ~/repos/celldom/docker
-
-# Build the container (you only need to do this once -- or if there are important changes to it)
-nvidia-docker build -t celldom -f Dockerfile.prd .
+```bash
+# Pull the latest docker image (can be run anywhere)
+nvidia-docker pull eczech/celldom:latest
 
 # Decide which locally directory you want to use within the container as
 # the main storage directory (otherwise, everything you generate in the container is temporary)
 export CELLDOM_DATA_DIR=/data/disk2/celldom
 
-# Set this to be the location of this repository on the host system
-export CELLDOM_REPO_DIR=$HOME/repos/celldom
-
 # Run the container, which will show a link to visit in your browser
 # Port relationships: 8888 -> Jupyterlab, 6006 -> Tensorboard, 8050-8060 -> Dash App
 nvidia-docker run --rm -ti -p 8888:8888 -p 6006:6006 -p 8050-8060:8050-8060 \
 -v $CELLDOM_DATA_DIR:/lab/data/celldom \
--v $CELLDOM_REPO_DIR:/lab/repos/celldom \
-celldom
-
+--name celldom eczech/celldom:latest
 ```
 
 After running the container, you will see a message like:

@@ -9,7 +9,7 @@ addons:
       - docker-ce
 before_install:
   - cd docker
-  - export REPO=celldom
+  - export REPO=eczech/celldom # Set docker hub repo name (TODO: get permissions for hammerlab dockerhub)
   - export TAG="$REPO:$(if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo $TRAVIS_BRANCH ; fi)"
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
   - docker build --build-arg TF_IMAGE=tensorflow/tensorflow:1.7.0-py3 --build-arg CELLDOM_REPO_BRANCH=$BRANCH -t $TAG -f Dockerfile.prd .

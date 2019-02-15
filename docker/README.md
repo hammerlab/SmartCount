@@ -3,22 +3,13 @@
 #### Production Container Instructions
 
 ```bash
-nvidia-docker run --rm celldom echo "hello"
-ndocker run -d --rm --name celldom celldom
-```
-
-```bash
-cd $REPOS/celldom/docker
-
-nvidia-docker build -t celldom -f Dockerfile.prd .
+nvidia-docker pull eczech/celldom:latest
 
 export CELLDOM_DATA_DIR=/data/disk2/celldom
-export CELLDOM_REPO_DIR=$HOME/repos/celldom
 
 nvidia-docker run --rm -ti -p 8888:8888 -p 6006:6006 -p 8050-8060:8050-8060 \
 -v $CELLDOM_DATA_DIR:/lab/data/celldom \
--v $CELLDOM_REPO_DIR:/lab/repos/celldom \
-celldom
+--name celldom eczech/celldom:latest
 ```
 
 #### Development Container Instructions
