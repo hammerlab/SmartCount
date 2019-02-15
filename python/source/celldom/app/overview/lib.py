@@ -3,12 +3,52 @@ import os
 import re
 import pandas as pd
 import numpy as np
-from celldom_app.overview import data
+from celldom.app.overview import data
 from celldom import io as celldom_io
 from celldom import annotation
 from skimage import io as sk_io
 import logging
 logger = logging.getLogger(__name__)
+
+
+class Dataset(object):
+
+    def __init__(self, df, name):
+        self.df = df
+        self.name = name
+
+    def select(self, rows):
+        """Plotly-specific row selection"""
+        return self.df if not rows else self.df.iloc[rows]
+
+
+class Datasets(object):
+
+    def __init__(self, loaders):
+        self.loaders = loaders
+        self.data = {}
+
+    def __getattr__(self, dataset):
+        if dataset not in self.data:
+            self.data[dataset] = self.load(dataset)
+        return self.data[dataset]
+
+    def __getitem__(self, dataset):
+        return self.__getattr__(dataset)
+
+    def load(self, dataset):
+        return Dataset(self.loaders[dataset](), dataset)
+
+    def update(self, dataset, code):
+        if code is None or not code.strip():
+            return self[dataset]
+        df = self.load(dataset).df.copy()
+        logger.debug('Applying custom code to dataset "%s":\n%s', dataset, code)
+        local_vars = {'df': df}
+        exec(code, globals(), local_vars)
+        df = local_vars['df']
+        self.data[dataset] = Dataset(df, dataset)
+        return self.data[dataset]
 
 
 def get_array_graph_figure(df, metric, enable_normalize, value_range=None, agg_func=np.median, fill_value=None,
@@ -82,7 +122,7 @@ def get_array_graph_figure(df, metric, enable_normalize, value_range=None, agg_f
 
 def _normalize_path(p):
     p = re.sub(r'[^ ;_.:\-a-zA-Z0-9]', '', p)
-    return re.sub(r'[; ]', '-', p)
+    return re.sub(r'[:; ]', '-', p)
 
 
 def export_apartment_annots(exp_config, identifier, images, titles, relpath=osp.join('export', 'apartment')):
@@ -120,7 +160,7 @@ def export_apartment_images(identifier, images, titles, type='tif', relpath=osp.
     elif type == 'png':
         paths = []
         for image, title in zip(images, titles):
-            path = osp.join(exp_dir, identifier + ':' + _normalize_path(title) + '.png')
+            path = osp.join(exp_dir, identifier + '-' + _normalize_path(title) + '.png')
             sk_io.imsave(path, image)
             paths.append(path)
     else:

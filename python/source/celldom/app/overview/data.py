@@ -8,8 +8,8 @@ from celldom.execute import analysis
 from celldom.execute import visualization
 from celldom.core import cytometry
 from celldom.execute import view
-from celldom_app.overview import config
 from cvutils.encoding import base64_encode_image
+from celldom.app.overview import config
 from skimage import color
 from tables.exceptions import HDF5ExtError
 import logging
@@ -25,6 +25,7 @@ KEY_APT_SUMMARY = 'apartment_summary'
 KEY_ACQ = 'acquisition'
 KEY_CELL = 'cell'
 KEY_ARRAY = 'array'
+KEY_ARRAY_SUMMARY = 'array_summary'
 
 # Currently, nothing is cached by application (all such functionality should be pushed to celldom.execute.calculation)
 SAVE_KEYS = []
@@ -51,24 +52,12 @@ def restore():
             cache[k] = pd.read_hdf(f)
 
 
-def get_apartment_summary_data():
-    return cache[KEY_APT_SUMMARY]
+def get_dataset(dataset):
+    return cache[dataset]
 
 
-def get_acquisition_data():
-    return cache[KEY_ACQ]
-
-
-def get_cell_data():
-    return cache[KEY_CELL]
-
-
-def get_apartment_data():
-    return cache[KEY_APT]
-
-
-def get_array_data():
-    return cache[KEY_ARRAY]
+def get_dataset_names():
+    return cache.keys()
 
 
 def get_array_key_fields():
@@ -109,6 +98,35 @@ def get_output_path(path):
     return osp.join(cfg.app_output_dir, path)
 
 
+def _get_array_data(df):
+    df = df.groupby(cfg.experimental_condition_fields).agg({
+        'growth_rate': ['count', 'median', 'mean'],
+        'first_date': 'min',
+        'last_date': 'max'
+    })
+    df.columns = [':'.join(c) for c in df]
+    df = df.rename(columns={
+        'growth_rate:count': 'num_apartments',
+        'growth_rate:median': 'median_growth_rate',
+        'growth_rate:mean': 'mean_growth_rate',
+        'first_date:min': 'first_date',
+        'last_date:max': 'last_date'
+    })
+    return df.reset_index()
+
+
+def _get_array_summary_data(df_acq, df_arr):
+    # Count raw files processed for each experimental condition
+    df_acq = df_acq.groupby(cfg.experimental_condition_fields).size().rename('num_raw_images')
+
+    # Select fields from array data
+    df_arr = df_arr.set_index(cfg.experimental_condition_fields)[[
+        'mean_growth_rate', 'median_growth_rate', 'num_apartments']]
+
+    # Merge acquisition summary and array data
+    return pd.concat([df_acq, df_arr], axis=1).reset_index()
+
+
 def initialize():
     global cfg
     global image_store
@@ -132,22 +150,10 @@ def initialize():
         cache[k] = store.get(k)
 
     if KEY_ARRAY not in cache:
-        df = cache[KEY_APT_SUMMARY]
-        df = df.groupby(cfg.experimental_condition_fields).agg({
-            'growth_rate': ['count', 'median', 'mean'],
-            'first_date': 'min',
-            'last_date': 'max'
-        })
-        df.columns = [':'.join(c) for c in df]
-        df = df.rename(columns={
-            'growth_rate:count': 'num_apartments',
-            'growth_rate:median': 'median_growth_rate',
-            'growth_rate:mean': 'mean_growth_rate',
-            'first_date:min': 'first_date',
-            'last_date:max': 'last_date'
-        })
-        df = df.reset_index()
-        cache[KEY_ARRAY] = df
+        cache[KEY_ARRAY] = _get_array_data(cache[KEY_APT_SUMMARY])
+
+    if KEY_ARRAY_SUMMARY not in cache:
+        cache[KEY_ARRAY_SUMMARY] = _get_array_summary_data(cache[KEY_ACQ], cache[KEY_ARRAY])
 
     # Save any cached objects that haven't already been saved
     save(overwrite=False)
@@ -168,8 +174,8 @@ def get_apartment_image_data(df, marker_color=visualization.COLOR_RED):
     idx = df.set_index(key_fields).index.drop_duplicates()
 
     # Select apartment/cell data based on the given growth data
-    apt_data = get_apartment_data().set_index(key_fields).loc[idx].reset_index().copy()
-    cell_data = get_cell_data().set_index(key_fields).loc[idx].reset_index().copy()
+    apt_data = cache[KEY_APT].set_index(key_fields).loc[idx].reset_index().copy()
+    cell_data = cache[KEY_CELL].set_index(key_fields).loc[idx].reset_index().copy()
 
     # Add externally saved apartment images to apartment data
     images = []

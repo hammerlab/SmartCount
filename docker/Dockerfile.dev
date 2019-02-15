@@ -1,10 +1,11 @@
-FROM tensorflow/tensorflow:1.7.0-gpu-py3
+ARG TF_IMAGE=tensorflow/tensorflow:1.7.0-gpu-py3
 ARG LAB_DIR=/lab
 ARG REPO_DIR=/lab/repos
 ARG DATA_DIR=/lab/data
 ARG CELLDOM_REPO_DIR=$REPO_DIR/celldom
 ARG CELLDOM_DATA_DIR=$DATA_DIR/celldom
 ARG CVUTILS_REPO_DIR=$REPO_DIR/cvutils
+FROM $TF_IMAGE
 
 RUN mkdir -p $LAB_DIR $REPO_DIR $DATA_DIR
 
@@ -23,22 +24,27 @@ RUN pip install \
     dash-core-components==0.43.0 \
     dash-table==3.1.11 \
     jupyterlab plotly plotnine \
-    Cython papermill opencv-python tables retrying fire tifffile umap-learn \
-    moviepy Pillow h5py imgaug
+    Cython papermill opencv-python \
+    tables retrying fire tifffile \
+    umap-learn moviepy Pillow h5py imgaug
 
 # The below is necessary to download ffmeg locally and though imageio has since deprecated the
 # need for this, moviepy still has hardcode references to deprecated functions (so an older
 # version of imageio is used along with a call to run the one-time download)
 RUN python -c 'import imageio; imageio.plugins.ffmpeg.download()'
 
+RUN pip install --no-deps \
+    "git+https://github.com/matterport/Mask_RCNN.git@v2.1#egg=maskrcnn-2.1" \
+    "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
 
 # Matterport Mask RCNN project installation
-RUN cd $REPO_DIR && git clone https://github.com/matterport/Mask_RCNN.git
+# RUN cd $REPO_DIR && git clone https://github.com/matterport/Mask_RCNN.git
 # See: https://github.com/matterport/Mask_RCNN/issues/6
-RUN pip install --no-deps "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
+# RUN pip install --no-deps "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
 # Override requirements specified by RCNN lib to ignore tensorflow (which it references
 # as the CPU-only package, which makes no sense for anything other than maybe unit tests)
-RUN cd $REPO_DIR/Mask_RCNN && pip install --no-deps .
+# RUN cd $REPO_DIR/Mask_RCNN && pip install --no-deps .
+
 
 # Add any source directories for development to python search path
 RUN mkdir -p $(python -m site --user-site) && \
@@ -57,7 +63,6 @@ RUN mkdir -p $(python -m site --user-site) && \
 ENV CELLDOM_REPO_DIR $CELLDOM_REPO_DIR
 ENV CELLDOM_DATA_DIR $CELLDOM_DATA_DIR
 ENV CVUTILS_REPO_DIR $CVUTILS_REPO_DIR
-ENV MASK_RCNN_DIR $REPO_DIR/Mask_RCNN
 ENV LAB_ROOT_DIR $LAB_DIR
 ENV SHELL /bin/bash
 
