@@ -34,8 +34,8 @@ RUN pip install \
 RUN python -c 'import imageio; imageio.plugins.ffmpeg.download()'
 
 RUN pip install --no-deps \
-    "git+https://github.com/matterport/Mask_RCNN.git@v2.1#egg=maskrcnn-2.1" \
-    "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
+    "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI" \
+    "git+https://github.com/matterport/Mask_RCNN.git#egg=maskrcnn"
 
 # Matterport Mask RCNN project installation
 # RUN cd $REPO_DIR && git clone https://github.com/matterport/Mask_RCNN.git

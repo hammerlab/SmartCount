@@ -2,7 +2,12 @@
 
 #### Production Container Instructions
 
+```bash
+nvidia-docker run --rm celldom echo "hello"
+ndocker run -d --rm --name celldom celldom
 ```
+
+```bash
 cd $REPOS/celldom/docker
 
 nvidia-docker build -t celldom -f Dockerfile.prd .
@@ -21,7 +26,7 @@ celldom
 This is only necessary when developing/testing some repos simultaneously and
 when you intend to train models (as opposed to just use them):
 
-```
+```bash
 cd $REPOS/celldom/docker
 
 nvidia-docker build -t celldom-dev -f Dockerfile.dev .

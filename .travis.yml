@@ -6,14 +6,17 @@ before_install:
   - cd docker
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
   - docker build --build-arg TF_IMAGE=tensorflow/tensorflow:1.7.0-py3 --build-arg CELLDOM_REPO_BRANCH=$BRANCH -t celldom -f Dockerfile.prd .
-  - docker run -d --name app flask-demo-app
+  - docker run -d --rm --name celldom celldom
   - docker ps -a
+  #  CONTAINER ID        IMAGE               COMMAND                  CREATED             STATUS              PORTS                NAMES
+  #  0682f850c3de        celldom             "/bin/sh -c 'jupyter…"   27 seconds ago      Up 24 seconds       6006/tcp, 8888/tcp   celldom
 script:
-  - docker exec app python -m unittest discover
-script:
-  - nosetests --exe -sv tests/ --with-coverage --cover-inclusive --cover-package=cytokit
-  - bash ./.lint.sh
+  - docker exec celldom pip install nose coveralls pylint
+  - docker exec -w /lab/repos/celldom/python/source celldom nosetests --exe -sv tests/ --with-coverage --cover-inclusive --cover-package=celldom
+  - docker exec -w /lab/repos/celldom/python/source celldom bash ./.lint.sh
 after_success:
+  - cd ../python/source
+  - docker cp celldom:/lab/repos/celldom/python/source/.coverage .
   - coveralls
 before_deploy:
   - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"

@@ -18,16 +18,12 @@ RUN apt-get install -y libsm6 libxext6 libfontconfig1 libxrender1
 RUN pip install "git+https://github.com/hammerlab/cvutils.git#egg=cvutils&subdirectory=python"
 
 # Note that the training extras must always follow the initial dependency installations because
-# pycocotools uses Cython in its package setup script
+# pycocotools uses Cython in its package setup script for some reason
 RUN cd $REPO_DIR && \
     git clone -b $CELLDOM_REPO_BRANCH --single-branch https://github.com/hammerlab/celldom.git && \
     cd celldom/python/source && \
     pip install -e .[app] && \
     pip install -e .[training]
-
-RUN pip install --no-deps \
-    "git+https://github.com/matterport/Mask_RCNN.git@v2.1#egg=maskrcnn-2.1" \
-    "git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI"
 
 # This is necessary to download ffmeg locally and though imageio has since deprecated the
 # need for this, moviepy still has hardcoded references to deprecated functions (so an older

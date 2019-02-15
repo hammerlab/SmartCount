@@ -50,12 +50,12 @@ if __name__ == '__main__':
         ],
         dependency_links=[
             'git+https://github.com/philferriere/cocoapi.git#egg=pycocotools&subdirectory=PythonAPI'
-            'git+https://github.com/matterport/Mask_RCNN.git@v2.1#egg=maskrcnn-2.1'
+            'git+https://github.com/matterport/Mask_RCNN.git#egg=mrcnn'
         ],
         extras_require={
             'tf': ['tensorflow>=1.7.0'],
             'tf_gpu': ['tensorflow-gpu>=1.7.0'],
-            'training': ['pycocotools', 'maskrcnn', 'imgaug'],
+            'training': ['pycocotools', 'mrcnn', 'imgaug'],
             'app': [
                 'dash==0.36.0',
                 'dash-html-components==0.13.5',
