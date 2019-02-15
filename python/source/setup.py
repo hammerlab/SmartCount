@@ -1,8 +1,6 @@
-import os
 import os.path as osp
 import logging
-import re
-from setuptools import setup
+from setuptools import setup, find_packages
 
 readme_path = osp.join(osp.dirname(__file__), 'README.md')
 
