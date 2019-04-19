@@ -1,4 +1,4 @@
-  resources:
+resources:
   models:
     marker:
       type: file
