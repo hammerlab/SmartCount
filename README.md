@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/hammerlab/celldom.svg?branch=master)](https://travis-ci.com/hammerlab/celldom)
+[![Build Status](https://travis-ci.org/hammerlab/celldom.svg?branch=master)](https://travis-ci.org/hammerlab/celldom)
 [![Coverage Status](https://coveralls.io/repos/github/hammerlab/celldom/badge.svg)](https://coveralls.io/github/hammerlab/celldom)
 
 # Celldom
