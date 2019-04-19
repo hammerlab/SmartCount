@@ -79,7 +79,8 @@ def process_results(apt_data, cell_data, exp_cond_fields, cell_marker_color):
         raise AssertionError('Apartment data index should be unique; Duplicate rows:\n{}'.format(apt_data_dupe))
 
     # Set index on cell data to make it searchable
-    cell_data = cell_data.set_index(keys).sort_index()
+    if len(cell_data) > 0:
+        cell_data = cell_data.set_index(keys).sort_index()
 
     df = []
     for i, r in apt_data.iterrows():

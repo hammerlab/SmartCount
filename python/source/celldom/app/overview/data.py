@@ -175,7 +175,11 @@ def get_apartment_image_data(df, marker_color=visualization.COLOR_RED):
 
     # Select apartment/cell data based on the given growth data
     apt_data = cache[KEY_APT].set_index(key_fields).loc[idx].reset_index().copy()
-    cell_data = cache[KEY_CELL].set_index(key_fields).loc[idx].reset_index().copy()
+    cell_data = cache[KEY_CELL].set_index(key_fields)
+    if len(idx.intersection(cell_data.index)) > 0:
+        cell_data = cell_data.loc[idx].reset_index().copy()
+    else:
+        cell_data = pd.DataFrame()
 
     # Add externally saved apartment images to apartment data
     images = []

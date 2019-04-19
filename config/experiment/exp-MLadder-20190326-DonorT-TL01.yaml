@@ -1,0 +1,24 @@
+name: exp-MLadder-20190326-DonorT-TL01.yaml
+chip: {name: chip-ML01}
+cytometer: {name: cytometer-04}
+analysis: {name: default}
+acquisition:
+  magnification: 10
+  reflection: true
+metadata:
+  # Example file path: */Datasets/20190124/control/Chip1/20181102-Mladder150-MOLM-Day1-Chip4-40mbar-1000mbarsqueeze/BF_ST_000_APT_012_20181102103634.tif
+  fields:
+    datetime:
+      regex: '[0-9]{14}'
+      format: '%Y%m%d%H%M%S'
+    street: '[0-9]{3}'
+    apartment: '[0-9]{3}'
+    cohort: 'Activate|Control'
+    chip: '[0-9]{2}'
+    timepoint: 't01|t02|t03|t04|t05|t06|t07|t08'
+  path_format: '.*/.*/.*/20190326-DonorT-TL01-Activation/{cohort}/Chip{chip}/{timepoint}/BF_ST_{street}_APT_{apartment}_{datetime}.tif'
+groupings:
+  # This list should include all fields necessary to identify a set of values specific to an experimental condition
+  # *IMPORTANT* Combinations of these fields must correspond to distinct apt_num/st_num namespaces (which
+  # usually translates to defining individual chips)
+  experimental_conditions: [cohort,chip]
