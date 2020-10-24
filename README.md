@@ -12,6 +12,10 @@ Repository for collaboration on Celldom computer vision solutions
     - Extract individual cell images from apartment images
     - Quantify the cells in single apartments (counts, sizes, "roundness", etc.)
     - Interpret the database of information that results from processing (3 tables, one for raw images, apartments, and individual cells)
+- Screencasts
+    - [Basic Usage](https://drive.google.com/file/d/1Z5WBaoYv3USme-7F7lqpd-Hsw0fxQXM7/view?usp=sharing) - This video shows an overview of the UI and visualization app
+    - [Heatmaps Over Time](https://drive.google.com/file/d/18fNeAVOHsj7K0bCn-UZSPzvb-QEoXCcE/view?usp=sharing) - This video shows how the time-indexed heatmaps can be used for QC (e.g. identifying apartments that were not counted) or visualizing cell growth rates over time
+    - [Apartment Time Lapse](https://drive.google.com/file/d/18fNeAVOHsj7K0bCn-UZSPzvb-QEoXCcE/view?usp=sharing) - This video shows how to visualize cell counts for individual apartments over time as well as export video time lapses of segmented objects within that apartment
 - [Processing CLI](python/notebook/examples/processing_cli.ipynb) - This example shows how to accomplish the above using the CLI instead of python, as well as how to run a growth rate analysis
 - Generating Videos ([basic](python/notebook/examples/generating_videos_simple.ipynb) | [advanced](python/notebook/examples/generating_videos_detailed.ipynb)) - These examples show how to get details about specific apartments (like videos), after using the pre-computed cell counts to help select interesting ones
 
