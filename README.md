@@ -7,10 +7,10 @@ Repository for collaboration on Celldom computer vision solutions
 
 ### Screencasts
 
-- [Basic Usage](https://drive.google.com/file/d/1Z5WBaoYv3USme-7F7lqpd-Hsw0fxQXM7/view?usp=sharing) - This video shows an overview of the UI and visualization app
-- [Cross Filtering](https://drive.google.com/file/d/1w0X0GpKM2B2cv5STVIl1Yth_s8OwXUw4/view?usp=sharing) - This video shows how to visualize growth across an entire array while being able to zoom in on details for individual apartments
-- [Heatmaps Over Time](https://drive.google.com/file/d/18fNeAVOHsj7K0bCn-UZSPzvb-QEoXCcE/view?usp=sharing) - This video shows how the time-indexed heatmaps can be used for QC (e.g. identifying apartments that were not counted) or visualizing cell growth rates over time
-- [Apartment Time Lapse](https://drive.google.com/file/d/18fNeAVOHsj7K0bCn-UZSPzvb-QEoXCcE/view?usp=sharing) - This video shows how to visualize cell counts for individual apartments over time as well as export video time lapses of segmented objects within that apartment
+- [Basic Usage](https://drive.google.com/file/d/1Z5WBaoYv3USme-7F7lqpd-Hsw0fxQXM7/view?usp=sharing) - Overview of the UI and visualization app
+- [Cross Filtering](https://drive.google.com/file/d/1w0X0GpKM2B2cv5STVIl1Yth_s8OwXUw4/view?usp=sharing) - Visualize growth across an entire array with drill down interaction to images and per-hour cell counts for single apartments
+- [Heatmaps Over Time](https://drive.google.com/file/d/18fNeAVOHsj7K0bCn-UZSPzvb-QEoXCcE/view?usp=sharing) - How the time-indexed heatmaps can be used for QC (e.g. identifying apartments that were not counted) or visualizing cell growth rates over time
+- [Apartment Time Lapse](https://drive.google.com/file/d/18fNeAVOHsj7K0bCn-UZSPzvb-QEoXCcE/view?usp=sharing) - Visualize cell counts for individual apartments over time as well as export video time lapses of segmented objects within that apartment
     
 ### Examples
 
