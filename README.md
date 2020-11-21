@@ -25,11 +25,10 @@ To use the tools in this repo, you need
 [nvidia-docker](https://github.com/nvidia/nvidia-docker/wiki/Installation-(version-2.0)#installing-version-20) running
 on Ubuntu (preferably 16.04 but other versions may work too).  Installing nvidia-docker will also involve installing
 [NVIDIA Drivers](https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#package-manager-installation)
-as well as regular [Docker](https://docs.docker.com/install/) -- both of these links are from the first link on
-installing nvidia-docker and all three worked fine for me on the first go at it.
+as well as standard [Docker](https://docs.docker.com/install/).
 
 After that, there isn't much to setup other than building and running the docker container.  All that requires is
-to first clone this repository somewhere locally (say ~/repos), and then run:
+to first clone this repository somewhere locally (e.g. ~/repos), and then run:
 
 ```bash
 # Pull the latest docker image (can be run anywhere)
@@ -46,17 +45,7 @@ nvidia-docker run --rm -ti -p 8888:8888 -p 6006:6006 -p 8050-8060:8050-8060 \
 --name celldom eczech/celldom:latest
 ```
 
-After running the container, you will see a message like:
-
-    Copy/paste this URL into your browser when you connect for the first time,
-    to login with a token:
-        http://localhost:8888/?token=405433c2da0457103c4727d96392x50945ce85bdee80e095
-
-
-If a browser has already opened (which happens automatically on mac), then you can paste the portion
-after "token=" into the text box to login.  After this you will be in [jupyterlab](http://jupyterlab.readthedocs.io/en/stable/)
-and can use that to write/run code (either python or bash).
-
+The primary interface to the container is [JupyterLab](http://jupyterlab.readthedocs.io/en/stable/), which will be available on the localhost at port 8888.
 
 ## Development Notes
 
