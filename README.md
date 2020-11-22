@@ -47,6 +47,16 @@ nvidia-docker run --rm -ti -p 8888:8888 -p 6006:6006 -p 8050-8060:8050-8060 \
 
 The primary interface to the container is [JupyterLab](http://jupyterlab.readthedocs.io/en/stable/), which will be available on the localhost at port 8888.
 
+
+### Training 
+
+The training process for all 3 models types can be found in these notebooks:
+
+- [Cell Model Training](python/notebook/training/cells/cell_model_training.ipynb) - This notebook shows how the Mask-RCNN cell model is trained to identify individual cell objects across several cell lines and chip form factor.
+- [Marker Model Traiing](python/notebook/training/markers/marker_model_training.ipynb) - A "marker" can be any part of a chip apartment that is used to identify common pixel offsets.  This can be any visual feature of the apartment, though there is typically a feature printed on the chips specifically for doing this kind of key point identification.  See the notebook for example images and how large images containing many apartments are broken into individual apartment images.  This model is also based on the Mask-RCNN architecture.
+- [Digit Model Training](python/notebook/training/digits/digit_model_training.ipynb) - Digit images are extracted from raw microscope images after the "marker" for each apartment has been identified (using fixed pixel offsets).  Exports of many of these images were annotated with the appropriate digit label and a 10-class classifier was trained in this notebook to recognize each digit.
+
+
 ## Development Notes
 
 ### Backups 
