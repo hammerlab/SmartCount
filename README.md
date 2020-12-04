@@ -1,6 +1,8 @@
-# Celldom
+[![DOI](https://zenodo.org/badge/133388326.svg)](https://zenodo.org/badge/latestdoi/133388326)
 
-Repository for collaboration on Celldom computer vision solutions
+# SmartCount
+
+Repository for collaboration on Celldom computer vision solutions.
 
 ### Screencasts
 
