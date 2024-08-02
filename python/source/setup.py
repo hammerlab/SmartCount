@@ -30,7 +30,7 @@ if __name__ == '__main__':
             'Programming Language :: Python :: 3.6'
         ],
         install_requires=[
-            'keras==2.1.6',
+            'keras==2.13.1',
             'scikit-image==0.14.0',
             'imageio==2.4.1',
             'jupyterlab',
